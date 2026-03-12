@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }} – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    .nav { background:#111827; color:#fff; }
+    .navwrap { max-width:1180px; margin:0 auto; padding:10px 14px;
+               display:flex; gap:12px; align-items:center; }
+    .nav a { color:#cbd5e1; text-decoration:none; padding:6px 10px; border-radius:6px; }
+    .nav a:hover, .nav a.active { background:rgba(255,255,255,.12); color:#fff; }
+    .wrap { max-width:1180px; margin:18px auto; padding:0 14px; font-family:system-ui,Segoe UI,Arial,sans-serif; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px;
+            box-shadow:0 6px 18px rgba(0,0,0,.05); }
+  </style>
+</head>
+<body>
+  <!-- gleiche Navbar wie im Kalender -->
+  <div class="nav">
+    <div class="navwrap">
+      <div style="font-weight:800; color:#fff;">Fahrstundenplaner</div>
+      <a href="/" class="{% if active == 'calendar' %}active{% endif %}">Kalender</a>
+      <a href="/students/" class="{% if active == 'students' %}active{% endif %}">Fahrschüler</a>
+      <a href="/instructors/" class="{% if active == 'instructors' %}active{% endif %}">Fahrlehrer</a>
+      <a href="/vehicles/" class="{% if active == 'vehicles' %}active{% endif %}">Fahrzeuge</a>
+      <a href="/types/" class="{% if active == 'types' %}active{% endif %}">Fahrttypen</a>
+      <a href="/settings/" class="{% if active == 'settings' %}active{% endif %}">Einstellungen</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1>{{ title }}</h1>
+    <div class="card">
+      <p>Diese Seite ist als Nächstes dran. Hier kommt die Verwaltung für <strong>{{ title }}</strong> hin.</p>
+      <p><a href="/">← zurück zum Kalender</a></p>
+    </div>
+  </div>
+</body>
+</html>

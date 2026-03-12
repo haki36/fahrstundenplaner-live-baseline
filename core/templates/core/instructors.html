@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrlehrer – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f7f7f8;}
+    .nav{background:#111827;color:#fff;}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .navwrap{max-width:none;margin:0;padding:10px 14px;display:flex;gap:12px;align-items:center}
+    .nav a{color:#cbd5e1;text-decoration:none;padding:6px 10px;border-radius:6px}
+    .nav a:hover,.nav a.active{background:rgba(255,255,255,.12);color:#fff}
+    .wrap{max-width:none;margin:18px 0;padding:0 14px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+    .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr 1fr}
+    .row{display:flex;gap:8px}
+    input{height:36px;border:1px solid #d1d5db;border-radius:8px;padding:0 10px}
+    .btn{padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .btn.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+    .btn.danger{background:#dc2626;border-color:#dc2626;color:#fff}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee}
+
+    /* Tabelle auf ~6 Zeilen begrenzen (≈ 6 * ~48px = 288px) */
+    .table-scroll{
+      max-height: 288px;           /* Sichtbar: ~6 Zeilen */
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+
+    /* Header beim Scrollen sichtbar lassen */
+    .table-scroll thead th{
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+    }
+
+    /* Optional: etwas kompaktere Zeilenhöhe */
+    .table-scroll td, .table-scroll th{
+      padding: 8px; /* hast du schon */
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="nav">
+    <div class="navwrap">
+      <div style="font-weight:800; color:#fff;">Fahrstundenplaner</div>
+      <a href="/">Kalender</a>
+      <a href="/students/">Fahrschüler</a>
+      <a href="/instructors/" class="active">Fahrlehrer</a>
+      <a href="/vehicles/">Fahrzeuge</a>
+      <a href="/types/">Fahrttypen</a>
+      <a href="/settings/">Einstellungen</a>
+    </div>
+  </div>
+
+  
+
+
+  <div class="wrap">
+    <h1>Fahrlehrer</h1>
+
+    {% if error %}<div style="color:#b91c1c;margin:8px 0">{{ error }}</div>{% endif %}
+
+    <!-- Formular: Neu/Bearbeiten -->
+    <div class="card" style="margin:12px 0;">
+      <form method="post" class="grid">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ edit.id|default:'' }}">
+
+        <input name="username" placeholder="Benutzername" value="{{ edit.username|default:'' }}">
+        <input name="first_name" placeholder="Vorname" value="{{ edit.first_name|default:'' }}">
+        <input name="last_name" placeholder="Nachname" value="{{ edit.last_name|default:'' }}">
+        <input name="email" placeholder="E-Mail" value="{{ edit.email|default:'' }}">
+        <input name="password" placeholder="Passwort (leer = unverändert)" type="password">
+
+        <!-- Admin-/Superuser-Flags: volle Breite der Grid -->
+        <div style="grid-column: 1 / -1; display:flex; flex-direction:column; gap:.25rem; margin-top:.25rem;">
+          <label style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" name="is_staff" {% if edit and edit.is_staff %}checked{% endif %}>
+            <span>Admin-Rechte (volle Rechte in der App)</span>
+          </label>
+
+          {% if request.user.is_superuser %}
+          <label style="display:flex;align-items:center;gap:.5rem;color:#b91c1c;">
+            <input type="checkbox" name="is_superuser" {% if edit and edit.is_superuser %}checked{% endif %}>
+            <span><strong>Superuser</strong> (Vollzugriff auf alles – mit Vorsicht!)</span>
+          </label>
+          {% endif %}
+        </div>
+
+
+
+        <div class="row" style="justify-content:flex-end; grid-column:1 / -1">
+          <a class="btn" href="{% url 'instructors_page' %}">Neu</a>
+          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">Speichern</button>
+        </div>
+      </form>
+    </div>
+
+
+
+    <!-- Liste -->
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Benutzername</th><th>Name</th><th>E-Mail</th><th style="width:210px">Aktion</th></tr></thead>
+          <tbody>
+          {% for u in items %}
+            <tr>
+              <td>{{ u.username }}</td>
+              <td>{{ u.first_name }} {{ u.last_name }}</td>
+              <td>{{ u.email }}</td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <a class="btn" href="?edit={{ u.id }}">Bearbeiten</a>
+                  <form method="post" onsubmit="return confirm('Diesen Fahrlehrer löschen?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" value="{{ u.id }}">
+                    <button class="btn danger" name="action" value="delete">Löschen</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Noch keine Fahrlehrer erfasst.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+    </div>
+
+    <p style="margin-top:12px;color:#4b5563">
+      
+    </p>
+  </div>
+  <div class="wrap">
+    <!-- === REPORT: Fahrlehrer-Wochenreport =================================== -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+      .report-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:14px 0}
+      .rp-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+      .rp-toolbar .group{display:flex;gap:8px;align-items:center}
+      .rp-toolbar select,.rp-toolbar input[type="date"],.rp-toolbar button{
+        height:38px;border:1px solid #d1d5db;border-radius:8px;background:#fff;padding:0 10px;cursor:pointer
+      }
+      .rp-toolbar .primary{background:#2563eb;color:#fff;border-color:#2563eb}
+      .rp-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}
+      .rp-kpi{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
+      .rp-kpi .h{font-size:12px;color:#6b7280;margin-bottom:4px}
+      .rp-kpi .v{font-size:20px;font-weight:800}
+      .rp-flex{display:flex;gap:14px;align-items:stretch;margin-top:14px}
+      .rp-left{flex:2 1 0}
+      .rp-right{flex:1 1 0;display:flex;flex-direction:column;gap:10px}
+      .rp-table{width:100%;border-collapse:collapse;font-size:14px}
+      .rp-table th,.rp-table td{border-bottom:1px solid #eee;padding:8px;text-align:left;white-space:nowrap}
+      .rp-type{display:flex;justify-content:space-between}
+      .muted{color:#6b7280}
+      .badge{padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px}
+      @media (max-width: 900px){
+        .rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .rp-flex{flex-direction:column}
+      }
+      /* Print/PDF */
+      @media print{
+        nav,.nav,.rp-toolbar{display:none!important}
+        .report-card{border:0;box-shadow:none;margin:0;padding:0}
+        body{background:#fff}
+      }
+      /* Tabelle: max. ~5 Zeilen sichtbar, danach Scroll */
+      .rp-table-scroll{
+        max-height: 260px;      /* ~Header + 5 Zeilen */
+        overflow-y: auto;
+        border:1px solid #e5e7eb;
+        border-radius:10px;
+      }
+
+      /* Header beim Scrollen sichtbar lassen */
+      .rp-table thead th{
+        position: sticky;
+        top: 0;
+        background:#fff;
+        z-index: 1;
+      }
+
+    </style>
+
+    <div class="report-card" id="instructor-report">
+      <div class="rp-toolbar">
+        <div class="group">
+          <label>Fahrlehrer</label>
+          <select id="rp-instructor"></select>
+        </div>
+        <div class="group">
+          <label>Woche</label>
+          <input type="date" id="rp-date">
+          <button id="rp-prev">« Woche</button>
+          <button id="rp-today">Diese Woche</button>
+          <button id="rp-next">Woche »</button>
+          <button class="primary" id="rp-run">Bericht anzeigen</button>
+        </div>
+        <div class="group" style="margin-left:auto">
+          <button id="rp-print">Als PDF exportieren</button>
+        </div>
+      </div>
+
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="h">Auslastung</div><div class="v" id="rp-util">–</div><div class="muted" id="rp-cap"></div></div>
+        <div class="rp-kpi"><div class="h">Gesamt-Minuten</div><div class="v" id="rp-mins">–</div></div>
+        <div class="rp-kpi"><div class="h">Fahrten</div><div class="v" id="rp-cnt">–</div></div>
+        <div class="rp-kpi"><div class="h">Ø Dauer/Termin</div><div class="v" id="rp-avg">–</div></div>
+        <div class="rp-kpi"><div class="h">Leerlauf gesamt</div><div class="v" id="rp-idle">–</div></div>
+      </div>
+
+      <div class="rp-flex">
+        <div class="rp-left report-card">
+          <div class="h" style="margin-bottom:8px">Auslastung nach Tagen</div>
+          <div style="height:300px"><canvas id="rp-chart"></canvas></div>
+        </div>
+        <div class="rp-right">
+          <div class="report-card">
+            <div class="h" style="margin-bottom:8px">Fahrttypen (Woche)</div>
+            <div id="rp-types"></div>
+          </div>
+          <div class="report-card">
+            <div class="h" style="margin-bottom:8px">Gesamt-Minuten je Tag</div>
+            <div id="rp-idle-list" class="muted"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-card">
+        <div class="h" style="margin-bottom:8px">Termine (Woche)</div>
+        <div class="rp-table-scroll">
+          <table class="rp-table">
+            <thead>
+              <tr><th>Tag</th><th>Zeit</th><th>Schüler</th><th>Typ</th><th>Dauer</th><th>Fahrzeug</th></tr>
+            </thead>
+            <tbody id="rp-rows"></tbody>
+          </table>
+          </div>
+      </div>
+    </div>
+
+    <script>
+    (async function(){
+      // --- Helpers
+      // === Helpers, damit es egal ist ob die API in extendedProps, camelCase oder snake_case liefert
+      const EP = (ev,k) => (ev?.[k] ?? ev?.extendedProps?.[k]);
+
+      const getTypeId   = ev => EP(ev,'typeId')    ?? EP(ev,'type_id')    ?? ev?.type?.id;
+      const getVehId    = ev => EP(ev,'vehicleId') ?? EP(ev,'vehicle_id');
+      const getStudId   = ev => EP(ev,'studentId') ?? EP(ev,'student_id');
+      const getStudName = ev => EP(ev,'studentName') ?? EP(ev,'student_name');
+
+      
+      const $ = s => document.querySelector(s);
+      const fmtHM = d => new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+      const fmtDay = d => new Intl.DateTimeFormat('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}).format(d);
+      const pad = n => String(n).padStart(2,'0');
+      const toISODate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const parseHMS = (s='08:00:00')=>{const [h,m] = s.split(':').map(Number);return h*60+m};
+
+      function startOfWeek(d){ const x = new Date(d); const k=(x.getDay()+6)%7; x.setDate(x.getDate()-k); x.setHours(0,0,0,0); return x; }
+      function endOfWeek(d){ const s = startOfWeek(d); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return e; }
+
+      let SETTINGS = null, OPTIONS = null, TYPES_BY_ID = {};
+      async function loadOptions(){
+        if (!OPTIONS) OPTIONS = await fetch('/api/options/').then(r=>r.json());
+        if (!SETTINGS) SETTINGS = await fetch('/api/settings/').then(r=>r.json()).catch(()=>null);
+        SETTINGS ||= { slotMinTime:'08:00:00', slotMaxTime:'20:00:00' };
+        (OPTIONS.types||[]).forEach(t=>TYPES_BY_ID[t.id]=t);
+      }
+
+      // --- UI init
+      await loadOptions();
+      const sel = $('#rp-instructor');
+      sel.innerHTML = '<option value="">-- Fahrlehrer wählen --</option>' +
+        (OPTIONS.instructors||[]).map(i=>`<option value="${i.id}">${i.label||i.name}</option>`).join('');
+
+      const dateEl = $('#rp-date');
+      dateEl.valueAsDate = new Date();
+      $('#rp-prev').onclick = ()=>{ dateEl.valueAsDate = new Date(startOfWeek(dateEl.valueAsDate||new Date()).getTime()-1); $('#rp-run').click(); };
+      $('#rp-next').onclick = ()=>{ const s = startOfWeek(dateEl.valueAsDate||new Date()); s.setDate(s.getDate()+7); dateEl.valueAsDate=s; $('#rp-run').click(); };
+      $('#rp-today').onclick= ()=>{ dateEl.valueAsDate = new Date(); $('#rp-run').click(); };
+      $('#rp-print').onclick= ()=> window.print();
+
+      let chart;
+      async function run(){
+
+        // ---- Helpers für Dauer/Ende mit Fallback ----
+        function minutesOf(ev, SETTINGS, TYPES_BY_ID){
+          const st = new Date(ev.start);
+          const en = endDateOf(ev, SETTINGS, TYPES_BY_ID);
+          return Math.max(0, Math.round((en - st) / 60000));
+        }
+        function endDateOf(ev, SETTINGS, TYPES_BY_ID){
+          const st = new Date(ev.start);
+          if (ev.end) return new Date(ev.end);
+          // Fallback: Fahrttyp-Standarddauer -> Settings -> 45
+          const tId = (ev?.typeId ?? ev?.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id);
+          const t   = TYPES_BY_ID[tId];
+          const mins = parseInt(t?.default_duration_min ?? SETTINGS?.defaultNewDurationMin ?? 45, 10);
+          return new Date(st.getTime() + mins*60000);
+        }
+
+        const instrId = $('#rp-instructor').value;
+
+        // Woche bestimmen
+        const s = startOfWeek($('#rp-date').valueAsDate || new Date());
+        const e = endOfWeek(s);
+
+        // Wenn noch kein Fahrlehrer gewählt: UI neutral anzeigen (kein Alert!)
+        if (!instrId){
+          $('#rp-util').textContent = '–';
+          $('#rp-cap').textContent  = '';
+          $('#rp-mins').textContent = '–';
+          $('#rp-cnt').textContent  = '–';
+          $('#rp-avg').textContent  = '–';
+          $('#rp-idle').textContent = '–';
+          $('#rp-types').innerHTML  = '<span class="muted">Bitte Fahrlehrer wählen.</span>';
+          $('#rp-idle-list').innerHTML = '';
+          $('#rp-rows').innerHTML   = `<tr><td colspan="6" class="muted">Bitte Fahrlehrer wählen.</td></tr>`;
+          if (chart) { chart.destroy(); chart = null; }
+          return;
+        }
+
+        // Daten laden
+        const q = new URLSearchParams({start: s.toISOString(), end: e.toISOString(), instructor: instrId});
+        const events = await fetch('/api/appointments/?'+q.toString()).then(r=>r.json());
+
+        // Settings / Kapazität
+        const dayLabels = []; for(let i=0;i<7;i++){ const d=new Date(s); d.setDate(s.getDate()+i); dayLabels.push(d); }
+        const dayCapMin = dayLabels.map(()=> Math.max(0, parseHMS(SETTINGS.slotMaxTime) - parseHMS(SETTINGS.slotMinTime)));
+        const capWeek = dayCapMin.reduce((a,b)=>a+b,0);
+
+        // Aggregation
+        const perDayType = {}; const perTypeTotal = {};
+        const perDayIdle = Array(7).fill(0);
+        let totalMin=0, totalCnt=0;
+
+        const evSorted = [...events].sort((a,b)=> new Date(a.start)-new Date(b.start));
+        for (const ev of events) {
+          const st = new Date(ev.start);
+          const mins = minutesOf(ev, SETTINGS, TYPES_BY_ID);
+          totalMin += mins; totalCnt++;
+
+          const di  = (st.getDay() + 6) % 7;   // Montag = 0
+          const tId = getTypeId(ev);           // holt typeId aus ev / extendedProps
+
+          perDayType[di] ||= {};
+          perDayType[di][tId] = (perDayType[di][tId] || 0) + mins;   // <-- NEU
+          perTypeTotal[tId]   = (perTypeTotal[tId]   || 0) + mins;   // <-- NEU
+        }
+
+        // Idle/Leerlauf je Tag
+        for(let d=0; d<7; d++){
+          const dayEv = evSorted.filter(ev => (new Date(ev.start).getDay()+6)%7===d)
+                                .sort((a,b)=> new Date(a.start)-new Date(b.start));
+          let idle=0;
+          for(let i=1;i<dayEv.length;i++){
+            const prevEnd = endDateOf(dayEv[i-1], SETTINGS, TYPES_BY_ID);
+            const curStart= new Date(dayEv[i].start);
+            const gap = Math.round((curStart - prevEnd)/60000);
+            if (gap>0) idle += gap;
+          }
+          perDayIdle[d]=idle;
+        }
+
+        const util = capWeek? Math.round(totalMin*100/capWeek):0;
+
+        // KPIs rendern
+        $('#rp-util').textContent = util+' %';
+        $('#rp-cap').textContent  = capWeek ? `(Kapazität: ${capWeek} Min/Woche)` : '';
+        $('#rp-mins').textContent = totalMin+'';
+        $('#rp-cnt').textContent  = totalCnt+'';
+        $('#rp-avg').textContent  = totalCnt? Math.round(totalMin/totalCnt)+' Min' : '–';
+        $('#rp-idle').textContent = perDayIdle.reduce((a,b)=>a+b,0)+' Min';
+
+        // === Chart: gesamte Minuten pro Tag als Balken (kein Stack) + Kapazität als Linie ===
+        const dayTotals = dayLabels.map((_,i)=> Object.values(perDayType[i]||{}).reduce((a,b)=>a+b,0));
+        const labels = dayLabels.map(d=> new Intl.DateTimeFormat('de-DE',{weekday:'short'}).format(d));
+
+        const datasets = [{
+          type:'bar',
+          label:'Belegte Minuten',
+          data: dayTotals,
+          backgroundColor: '#2563eb',   // Accent
+          borderWidth: 0
+        },{
+          type:'line',
+          label:'Kapazität',
+          data: dayCapMin,
+          fill:false,
+          borderColor:'#111',
+          borderWidth:1,
+          pointRadius:0,
+          tension:0
+        }];
+
+        if (chart) chart.destroy();
+        chart = new Chart($('#rp-chart'), {
+          type:'bar',
+          data:{labels,datasets},
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            scales:{ x:{ stacked:false }, y:{ beginAtZero:true, title:{display:true,text:'Minuten'} } },
+            plugins:{ legend:{ position:'bottom' } }
+          }
+        });
+
+        // === Fahrttypen: ALLE aus OPTIONS.types (auch 0-Minuten) ===
+        const allTypes = (OPTIONS.types||[]);
+        const totalForPct = totalMin || 1;
+        $('#rp-types').innerHTML = allTypes
+          .map(t=>{
+            const mins = perTypeTotal[t.id] || 0;
+            const pct  = Math.round(mins*100/totalForPct);
+            return `<div class="rp-type">
+                      <span><span class="badge" style="background:${t.color||t.type_color||'#eef2ff'};border-color:#ddd"></span> ${t.name}</span>
+                      <span>${mins} Min · ${pct}%</span>
+                    </div>`;
+          })
+          .join('') || '<span class="muted">Keine Fahrttypen konfiguriert.</span>';
+
+        // Gesamt-Minuten je Tag
+        const dayLabelFmt = new Intl.DateTimeFormat('de-DE', { weekday:'short', day:'2-digit', month:'2-digit' });
+        $('#rp-idle-list').innerHTML = dayLabels.map((d,i)=>
+          `${dayLabelFmt.format(d)}: ${dayTotals[i]} Min`
+        ).join('<br>');
+
+        // Termine-Tabelle
+        const rows = events
+          .sort((a,b)=> new Date(a.start)-new Date(b.start))
+          .map(ev=>{
+            const st=new Date(ev.start), en=endDateOf(ev, SETTINGS, TYPES_BY_ID);
+            const mins=minutesOf(ev, SETTINGS, TYPES_BY_ID);
+
+            const tId = getTypeId(ev);
+            const typeObj = (OPTIONS.types||[]).find(t => String(t.id) === String(tId));
+            const type = typeObj?.name || '';
+
+            const vehId = getVehId(ev);
+            const veh = (OPTIONS.vehicles||[]).find(v => String(v.id) === String(vehId))?.label || '';
+
+            const student = getStudName(ev) || (OPTIONS.students||[]).find(s=> String(s.id)===String(getStudId(ev)))?.label || '';
+
+            
+            return `<tr>
+              <td>${fmtDay(st)}</td>
+              <td>${fmtHM(st)} – ${fmtHM(en)}</td>
+              <td>${student}</td>
+              <td>${type}</td>
+              <td>${mins} Min</td>
+              <td>${veh}</td>
+            </tr>`;
+          }).join('');
+
+        $('#rp-rows').innerHTML = rows || `<tr><td colspan="6" class="muted">Keine Termine in dieser Woche.</td></tr>`;
+      }
+
+
+      $('#rp-run').onclick = run;
+      // first render
+      $('#rp-run').click();
+    })();
+    </script>
+  </div>
+</body>
+</html>

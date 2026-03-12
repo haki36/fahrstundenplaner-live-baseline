@@ -1,0 +1,1958 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- FullCalendar + deutsche Locales -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/locales-all.global.min.js"></script>
+
+  <style>
+    :root{
+      --brand:#111827;    /* Primärfarbe (Navbar-Hintergrund) */
+      --accent:#2563eb;   /* Haupt-CTA / aktive Buttons / ggf. Akzentlinien */
+      --danger:#dc2626;   /* „kritisch“: Löschen-Button usw. */
+      --card-radius:12px;   /* Standard-Radius für Karten/Container */
+      --today-bg:#fff8dc; /* Hintergrundfarbe für „heute“ im Kalender */
+    }
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f7f7f8;}
+    .brandbar{background:var(--brand);color:#fff;padding:10px 16px;font-weight:700}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .wrap{max-width:none;margin:14px 0;padding:0 14px}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 14px}
+    .toolbar .group{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:var(--card-radius);
+      padding:8px;
+
+      /* wichtig fürs Overlay-Dropdown */
+      position: relative;
+      overflow: visible;
+    }
+
+    .toolbar label{font-size:12px;color:#374151;margin-right:4px}
+
+    /* Standardbutton – neutral */
+    .btn{               
+      padding:8px 12px; border-radius:8px;
+      border:1px solid #d1d5db; background:#fff; cursor:pointer;
+    }
+
+    /* „Hervorgehobener“ Button */
+    .btn.primary{        
+      background:var(--accent); border-color:var(--accent); color:#fff;
+    }
+    .btn.icon{width:40px;height:36px;display:inline-grid;place-items:center}
+    select,input{height:36px;border:1px solid #d1d5db;border-radius:8px;padding:0 8px;background:#fff}
+    
+    /* FullCalendar-Hintergrundkarte */
+    .fc{                            
+        background:#fff; border:1px solid #e5e7eb;
+        border-radius:var(--card-radius);
+        box-shadow:0 6px 18px rgba(0,0,0,.05);
+      }
+
+    .fc-theme-standard .fc-scrollgrid{border:0}
+
+    .fc .fc-timegrid-slot{height: 0.75rem;}   /* feinere Linien */
+      .fc .fc-day-today{                      /* „Heute“ einfärben */
+        background:var(--today-bg);
+      }
+
+    .fc .fc-col-header-cell-cushion{padding:8px 6px;font-weight:700}
+
+    /* Terminblöcke hübscher */
+    .evt{padding:4px 6px;border-radius:8px;border:1px solid rgba(0,0,0,.1);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+    .evt .t{font-size:11px;opacity:.85;margin-bottom:2px}
+    .evt .title{font-size:12px;font-weight:600;line-height:1.2}
+
+    /* Modal (wie vorher) */
+    .modal{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,.45);
+      z-index: 10000;
+    }
+    .modal.open{display:flex}
+    .card{
+      position: relative;
+      z-index: 10001;
+      background:#fff;
+      border-radius:12px;
+      padding:16px;
+      min-width:340px;
+      max-width:560px;
+      box-shadow:0 12px 40px rgba(0,0,0,.35)
+    }
+    .row{display:flex;gap:8px;margin-bottom:8px}
+    .row>.field{flex:1}
+    label.small{font-size:12px;color:#333;display:block;margin-bottom:4px}
+    select,input[type="datetime-local"],textarea{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px}
+    .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+    
+    .fc .fc-col-header-cell-cushion { text-transform: uppercase; }
+    .fc .hdr-wrap { display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .fc .hdr-dow { font-weight:700; letter-spacing:.5px; font-size:12px; }
+    .fc .hdr-date { background:#0b57d0; color:#fff; border-radius:999px; padding:2px 8px; font-weight:700; }
+
+    .fc-timegrid-event { border: 0 !important; }
+    .evtGBlock {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 6px 8px;
+      border-radius: 12px;
+    }
+
+    /* 1. Zeile: Zeit */
+    .evtGBlock .time { 
+      font-size: 11px; 
+      font-weight: 700; 
+      opacity: .95; 
+      line-height: 1.15;
+    }
+
+    .evtGBlock .line1 { 
+      display: flex; 
+      gap: 6px; 
+      align-items: baseline;
+    }
+
+    /* 2. Zeile: Schülername */
+    .evtGBlock .student { 
+      font-size: 13px; 
+      font-weight: 700;
+      line-height: 1.2;
+      margin-top: 2px; 
+    }
+
+    /* 3. Zeile: Fahrttyp */
+    .evtGBlock .type { 
+      font-size: 12px; 
+      line-height: 1.2;
+      margin-top: 2px; 
+      opacity: .95; 
+    }
+
+    /* Unten: Notizen – immer am unteren Rand (margin-top:auto) */
+    .evtGBlock .notes { 
+      font-size: 11px; 
+      font-weight: bold;
+      margin-top: auto;   
+      line-height: 1.2;       
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      opacity: .9;
+    }
+
+    /* Sperrzeit-Karte: weiß + rotes Kreuz */
+    .evtBlock{
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 5px;       /* wenn weicher: auf 12px stellen */
+      overflow: hidden;
+      /* dezenteres Rot */
+      --blk: #000000;         /* <<< FARBE DES KREUZES (Linien) anpassen */
+
+      background:
+        linear-gradient(45deg,
+          transparent calc(50% - 2px),
+          var(--blk)   calc(50% - 2px),
+          var(--blk)   calc(50% + 2px),
+          transparent calc(50% + 2px)
+        ),
+        linear-gradient(-45deg,
+          transparent calc(50% - 2px),
+          var(--blk)   calc(50% - 2px),
+          var(--blk)   calc(50% + 2px),
+          transparent calc(50% + 2px)
+        );
+      background-color:#fff !important;
+      border:1px solid #ef4444 !important;
+      box-shadow:0 1px 2px rgba(0,0,0,.06);
+      min-height: 18px;
+    }
+
+    /* Text-Overlay in der Sperrzeit */
+    .evtBlock .info{
+      position: absolute;
+      inset: 6px;                 /* etwas Abstand zum Rand */
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 8px;
+      border-radius: 8px;
+
+      /* dezente weiße Fläche für Lesbarkeit */
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(2px);
+    }
+
+    .evtBlock .info .line { line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .evtBlock .info .time  { font-weight: 700; font-size: 11px; color:#111; }
+    .evtBlock .info .title { font-weight: 800; font-size: 12px; color:#b91c1c; }  /* dunkleres Rot */
+    .evtBlock .info .inst  { font-weight: 600; font-size: 11px; color:#374151; }  /* grau */
+
+    .evtBlock .label{
+      position:absolute; left:35px; bottom:6px;
+      font-size:11px; font-weight:700; color:var(--blk); opacity:.9;
+    }
+
+
+    /* nur für Block-Events: den FC-Event-Hintergrund transparent halten */
+    /* nur Sperrzeiten neutralisieren (mehrere Targets, FC 6) */
+    .fc-timegrid-event.is-block,
+    .fc-timegrid-event.is-block .fc-event-main,
+    .fc-timegrid-event.is-block .fc-event-main-frame,
+    .fc-timegrid-event.is-block .fc-event-time,
+    .fc-timegrid-event.is-block .fc-event-title {
+      background: transparent !important;
+      border: 0 !important;
+      color: inherit !important;
+    }
+    .fc-timegrid-event.is-block { box-shadow: none !important; }
+
+    /* optional: Schatten/Umrandung vom Wrapper weg */
+    .fc-timegrid-event.is-block {
+      box-shadow: none !important;
+    }
+
+
+    .evtGBlock .time  { font-size: 11px; font-weight: 500; opacity: .95; }
+    .evtGBlock .title { font-size: 13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+        /* ===== Zeit-Leiste links (Stunden von oben nach unten) ===== */
+    .fc .fc-timegrid-axis {              /* Spaltenbreite links */
+      width: 68px !important;
+    }
+       /* Text-Styling der Uhrzeiten */
+    .fc .fc-timegrid-slot-label-cushion {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;                    /* grau */
+      padding-right: 6px;
+    }
+    .fc .fc-timegrid-slot-label {        /* Rechtsbündig ausrichten */
+      text-align: right;
+    }
+
+    /* optional: Zeitspalte „klebt“ links, wenn horizontal gescrollt wird */
+    .fc .fc-timegrid-axis-frame {
+      position: sticky;
+      left: 0;
+      background: #fff;
+      z-index: 5;
+      border-right: 1px solid #e5e7eb;
+    }
+    .toolbar .push-right { margin-left: auto; }
+    .fc-minsum { font-size:11px; color:#6b7280; margin-top:2px; }
+    .toolbar .titlebar { flex: 1 1 auto; justify-content: center; }
+    #calTitle { font-weight: 700; }
+
+    /* ===== Mobile/Tablet Tweaks ===== */
+    @media (max-width: 1024px) {
+      .wrap { padding: 0 10px; }
+      .toolbar { gap: 6px; }
+      .toolbar .group { flex-wrap: wrap; gap: 6px; }
+      .toolbar label { font-size: 11px; }
+      .btn, select, input[type="date"] { height: 40px; }
+      /* Sticky Zeitachse auf Mobil eher störend */
+      .fc .fc-timegrid-axis-frame { position: static; border-right: 1px solid #e5e7eb; }
+      /* weich scrollen in iOS */
+      .fc-scroller { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+    }
+
+    /* iPhone Hochformat */
+    @media (max-width: 768px) {
+      .toolbar { flex-direction: column; align-items: stretch; }
+      .toolbar .group { width: 100%; }
+      .toolbar .push-right { margin-left: 0; }
+      .toolbar .titlebar { order: -1; justify-content: center; }
+      .toolbar .group select,
+      .toolbar .group .btn { flex: 1 1 100%; min-width: 0; }
+
+      /* Zeitspalte etwas schmaler */
+      .fc .fc-timegrid-axis { width: 56px !important; }
+      .fc .fc-timegrid-slot-label-cushion { font-size: 11px; padding-right: 4px; }
+
+      /* Event-Kästchen: mehr Touch-Fläche */
+      .evtGBlock { padding: 6px 8px; border-radius: 12px; }
+
+      /* Modal: Vollbreit, großer Tap-Close */
+      .modal .card {
+        width: 92vw; max-width: none; min-width: 0;
+        margin: 0 2vw;
+      }
+      .actions .btn { min-height: 44px; } /* Apple HIG */
+    }
+
+    /* ==== Suchbares Dropdown für "Schüler" (Toolbar) ==== */
+  #filterStudent { display:none; }     /* natives Select bleibt unsichtbar */
+
+  /* Container wie im Screenshot (breit genug, kein Wackeln) */
+  #studentCombo.combo{
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    width: 920px;          /* <- Breite wie im Bild, bei Bedarf anpassen */
+    max-width: 420px;
+    z-index: 20;           /* über dem Group-Container */
+  }
+
+  #studentCombo.combo input{
+    height: 44px;          /* “kräftige” Höhe wie im Screenshot */
+    border:1px solid #d1d5db;
+    border-radius:12px;
+    padding:0 12px;
+    width:100%;
+    background:#fff;
+  }
+
+  /* Dropdown als schwebendes Overlay – beeinflusst das Layout NICHT */
+  #studentCombo.combo .dropdown{
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    width: 270px;
+    display: none;               /* wird per .open sichtbar */
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    box-shadow:0 20px 40px rgba(0,0,0,.15);
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 5000;               /* über Buttons & Kalender */
+  }
+
+  /* sichtbar, wenn JS .open setzt */
+  #studentCombo.combo.open .dropdown{ display:block; }
+
+  /* Listenelemente */
+  #studentCombo .opt{
+    padding:12px 14px;
+    cursor:pointer;
+    font-size:16px;
+  }
+  #studentCombo .opt:hover,
+  #studentCombo .opt.active{
+    background:#f3f4f6;
+  }
+
+  #studentCombo .empty{
+    padding:12px 14px;
+    color:#6b7280;
+  }
+
+  /* Clear-Button (×) im Eingabefeld */
+  #studentCombo .clear{
+    position:absolute; top:50%; right:10px; transform:translateY(-50%);
+    width:26px; height:26px; line-height:24px; text-align:center;
+    border-radius:50%; border:1px solid #d1d5db; background:#fff;
+    cursor:pointer; font-weight:700; opacity:.85;
+  }
+  #studentCombo .clear:hover{ background:#f3f4f6; }
+  #studentCombo .clear.hidden{ display:none; }
+
+  /* Mobile: volle Breite */
+  @media (max-width: 768px){
+    #studentCombo.combo{ width:100%; max-width:100%; }
+  }
+
+
+    /* === Clear-Button (×) im Schüler-Suchfeld === */
+    #studentCombo.combo { position: relative; }
+    #studentCombo.combo input {
+      padding-right: 28px; /* Platz für das × */
+    }
+
+    /* Das kleine × rechts im Input */
+    #studentCombo .clear {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 22px;
+      line-height: 20px;
+      text-align: center;
+      border-radius: 50%;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      cursor: pointer;
+      font-weight: bold;
+      opacity: .85;
+    }
+    #studentCombo .clear:hover { background:#f3f4f6; }
+    #studentCombo .clear.hidden { display: none; }
+
+    .cal-with-notes{ display:flex; gap:12px; align-items:stretch; }
+    .cal-with-notes #calendar{ flex: 1 1 auto; min-width: 0; }
+
+    .notes-panel{
+      flex: 0 0 180px;
+      display:flex; flex-direction:column;
+      border:1px solid #e5e7eb; border-radius:6px; background:#fff;
+      padding:10px; box-shadow:0 6px 18px rgba(0,0,0,.05);
+    }
+    .notes-panel .np-head{ font-weight:700; margin-bottom:8px; }
+    .notes-panel textarea{ flex:1 1 auto; resize:vertical; min-height:180px; }
+    .notes-panel .np-actions{ display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .notes-panel .muted{ color:#6b7280; font-size:12px; }
+
+    /* mobil: Notizen unter dem Kalender */
+    @media (max-width: 900px){
+      .cal-with-notes{ flex-direction:column; }
+      .notes-panel{ flex-basis:auto; }
+    }
+
+    /* ==== Suchbares Dropdown im TERMIN-DIALOG ==== */
+    .combo--dlg{
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      width: 100%;               /* füllt die Field-Spalte */
+      max-width: 100%;
+      z-index: 10005;            /* über allem in der Card */
+    }
+
+    .combo--dlg input{
+      height: 44px;
+      border:1px solid #d1d5db;
+      border-radius:12px;
+      padding:0 12px;
+      width:100%;
+      background:#fff;
+    }
+
+    .combo--dlg .dropdown{
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      display: none;             /* wird via .open sichtbar */
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      box-shadow:0 20px 40px rgba(0,0,0,.15);
+      max-height: 320px;
+      overflow-y: auto;
+      z-index: 10006;
+    }
+
+    .combo--dlg.open .dropdown{ display:block; }
+
+    .combo--dlg .opt{
+      padding:12px 14px;
+      cursor:pointer;
+      font-size:16px;
+    }
+    .combo--dlg .opt:hover,
+    .combo--dlg .opt.active{ background:#f3f4f6; }
+
+    .combo--dlg .empty{
+      padding:12px 14px;
+      color:#6b7280;
+    }
+
+    .combo--dlg .clear{
+      position:absolute; top:50%; right:10px; transform:translateY(-50%);
+      width:26px; height:26px; line-height:24px; text-align:center;
+      border-radius:50%; border:1px solid #d1d5db; background:#fff;
+      cursor:pointer; font-weight:700; opacity:.85;
+    }
+    .combo--dlg .clear:hover{ background:#f3f4f6; }
+    .combo--dlg .clear.hidden{ display:none; }
+    
+    /*Sonntag dunklere Darstellung*/
+    /* Sonntag in Month-Ansicht (dayGrid) */
+    .fc .fc-col-header-cell.fc-day-sun,
+    .fc .fc-daygrid-day.fc-day-sun {
+      background: #c7c7c7;          /* dezentes Blau-Grau */
+    }
+
+    /* Sonntag in Week/Day-Ansicht (timeGrid) */
+    .fc .fc-col-header-cell.fc-day-sun,
+    .fc .fc-timegrid-col.fc-day-sun {
+      background: #c7c7c7;
+    }
+
+    /* Die Tageszahl leicht betonen */
+    .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
+      font-weight: 600;
+    }
+
+    /* Optional: feine Innenkontur zur Abgrenzung */
+    .fc .fc-daygrid-day.fc-day-sun,
+    .fc .fc-timegrid-col.fc-day-sun {
+      box-shadow: inset 0 0 0 1px #e5e7eb;
+    }
+
+
+  </style>
+  <style>
+  /* Navbar minimal */
+  .nav { background:#111827; color:#fff; }
+  .navwrap { max-width:none; margin:0; padding:10px 14px;
+             display:flex; gap:12px; align-items:center; }
+  .nav a { color:#cbd5e1; text-decoration:none; padding:6px 10px; border-radius:6px; }
+  .nav a:hover, .nav a.active { background:rgba(255,255,255,.12); color:#fff; }
+</style>
+
+</head>
+<body>
+  <div class="nav">
+    <div class="navwrap" style="display:flex; gap:12px; align-items:center;">
+      <div style="font-weight:800; color:#fff;">Fahrstundenplaner</div>
+
+      <a href="/" class="active">Kalender</a>
+      <a href="/students/">Fahrschüler</a>
+      <a href="/instructors/">Fahrlehrer</a>
+      <a href="/vehicles/">Fahrzeuge</a>
+      <a href="/types/">Fahrttypen</a>
+      <a href="/settings/">Einstellungen</a>
+
+      <!-- Platz nach links schieben, damit rechtsbündig -->
+      <div style="margin-left:auto;"></div>
+
+      <!-- Hallo <Fahrschullehrer> -->
+      <div class="hidden sm:block" style="color:#cbd5e1; font-weight:600;">
+        Hallo {{ request.user.get_full_name|default:request.user.username }}
+      </div>
+      <div class="hidden sm:block" style="color:#cbd5e1; font-weight:600;">
+      <!-- Logout (POST) -->
+      <form method="post" action="{% url 'logout' %}" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" 
+                onclick="return confirm('Möchtest du dich wirklich abmelden?');"
+                style="color:#cbd5e1; background:transparent; border:0;">
+          Abmelden
+        </button>
+      </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1 style="margin:8px 0 0">Fahrstundenplaner</h1>
+    <!-- Oberes Bedienfeld -->
+    <div class="toolbar">
+      <div class="group">
+        <label>Fahrlehrer</label>
+        <button class="btn icon" id="prevInstructor" title="vorheriger Fahrlehrer">❮</button>
+        <select id="filterInstructor"></select>
+        <button class="btn icon" id="nextInstructor" title="nächster Fahrlehrer">❯</button>
+
+        <label>Fahrzeug</label>
+        <select id="filterVehicle"></select>
+
+        <label>Schüler</label>
+        <select id="filterStudent"></select>
+        <div id="studentCombo" class="combo"></div>
+
+        <label>Reset</label>
+        <div><button class="btn" id="clearFilters">Zurücksetzen</button></div>
+      </div>
+
+      <div class="group">
+        <input type="date" id="weekDate">
+        <button class="btn" id="gotoBtn">Datum anzeigen</button>
+      </div>
+
+      <div class="group titlebar">
+        <div id="calTitle" style="font-weight:700"></div>
+      </div>
+
+      <div class="group push-right">
+        <button class="btn" id="viewDay">Tag</button>
+        <button class="btn primary" id="viewWeek">Woche</button>
+        <button class="btn" id="viewList">Liste</button>
+      </div>
+
+      <div class="group">
+        <button class="btn" id="todayBtn">Heute</button>
+        <button class="btn icon" id="prevBtn">❮</button>
+        <button class="btn icon" id="nextBtn">❯</button>
+      </div>
+    </div>
+
+    <div class="cal-with-notes">
+      <div id="calendar"></div>
+
+      <aside class="notes-panel">
+        <div class="np-head">
+          Notizen / Warteliste (Woche)
+          <span id="week-note-scope" class="muted" style="margin-left:6px">–</span>
+          <span id="week-note-weeklabel" class="muted" style="margin-left:6px"></span>
+        </div>
+        <textarea id="week-note" placeholder="Interne Notizen zur aktuellen Kalenderwoche …"></textarea>
+        <div class="np-actions">
+          <button class="btn" id="week-note-save">Speichern</button>
+          <span id="np-status" class="muted"></span>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Modal: Neuer/Bearbeiten -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+      <h2 id="dlgTitle">Termin</h2>
+
+      <div class="row">
+        <div class="field">
+          <label class="small">Eintragsart</label>
+          <select id="entryKind">
+            <option value="appointment">Termin</option>
+            <option value="block">(Frei/Urlaub)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="small">Fahrlehrer</label>
+          <select id="instructor"></select>
+        </div>
+
+        <div class="field field-apt">
+          <label class="small">Fahrschüler</label>
+          <select id="student" style="display:none"></select>
+          <div id="dlgStudentCombo" class="combo combo--dlg"></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field field-apt">
+          <label class="small">Fahrzeug</label>
+          <select id="vehicle"></select>
+        </div>
+        <div class="field field-apt">
+          <label class="small">Fahrttyp</label>
+          <select id="type"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="small">Start</label>
+          <input id="start" type="datetime-local">
+        </div>
+        <div class="field">
+          <label class="small">Ende</label>
+          <input id="end" type="datetime-local">
+        </div>
+      </div>
+
+      <!-- NEU: Telefonnummer anzeigen -->
+      <div class="field">
+        <label class="small">Telefonnummer</label>
+        <input id="phone" type="text" readonly>
+      </div>
+
+      <div class="field">
+        <label class="small">Notizen</label>
+        <textarea id="notes" rows="3"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="cancelBtn">Abbrechen</button>
+        <button class="btn danger" id="deleteBtn" style="display:none">Löschen</button>
+        <button class="btn primary" id="saveBtn">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // CSRF
+    function getCookie(name){const v=`; ${document.cookie}`.split(`; ${name}=`);if(v.length===2)return v.pop().split(';').shift();}
+    const csrftoken = getCookie('csrftoken');
+
+    // Helper
+    const $ = id => document.getElementById(id);
+    function toLocalInputValue(iso){const d=new Date(iso),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}
+    function fromLocalInputValue(val){
+      return new Date(val).toISOString();
+    }
+    function openModal(){ $('modal').classList.add('open'); }
+    function closeModal(){ $('modal').classList.remove('open'); EDIT_ID=null; }
+    $('cancelBtn').onclick = closeModal;
+
+    // Options laden
+    let SETTINGS=null, OPTIONS=null, EDIT_ID=null, TYPES_BY_ID = {}, calendar=null;
+    async function loadOptions(){
+      const res = await fetch('/api/options/');
+      OPTIONS = await res.json();
+      TYPES_BY_ID = {};
+      for (const t of OPTIONS.types) TYPES_BY_ID[t.id] = t;
+      // --- alphabetisch nach 'label' sortieren ---
+      const instructorsSorted = [...(OPTIONS.instructors||[])];
+      const vehiclesSorted    = [...(OPTIONS.vehicles||[])];
+      const studentsSorted    = [...(OPTIONS.students||[])].sort((a,b)=>
+        (a.label||'').localeCompare(b.label||'', 'de', {sensitivity:'base'})
+      );
+      const typesSorted       = [...(OPTIONS.types||[])];
+
+      const fill=(id,list,labelKey='label')=>{
+        const el=$(id);
+        el.innerHTML='<option value="">-- alle --</option>';
+        list.forEach(it=>{
+          const o=document.createElement('option');
+          o.value=it.id; o.textContent=it[labelKey]||it.name;
+          el.appendChild(o);
+        });
+      };
+      fill('filterInstructor', instructorsSorted);
+      fill('filterVehicle',    vehiclesSorted);
+      fill('filterStudent',    studentsSorted);
+
+      //Alt
+      /*
+      const fill2=(id,list,labelKey='label')=>{
+        const el=$(id);
+        el.innerHTML='';
+        list.forEach(it=>{
+          const o=document.createElement('option');
+          o.value=it.id; o.textContent=it[labelKey]||it.name;
+          el.appendChild(o);
+        });
+      };
+      // Dialog-Dropdowns auch sortiert:
+      fill2('instructor', instructorsSorted);
+      fill2('vehicle',    vehiclesSorted);
+      fill2('student',    studentsSorted);
+      fill2('type',       typesSorted, 'name');
+        }
+      */
+
+      // NEU:
+      const fill2=(id,list,labelKey='label', withEmpty=false)=>{
+        const el=$(id);
+        el.innerHTML = withEmpty ? '<option value="">-- bitte wählen --</option>' : '';
+        list.forEach(it=>{
+          const o=document.createElement('option');
+          o.value = it.id;
+          o.textContent = it[labelKey] || it.name;
+          el.appendChild(o);
+        });
+      };
+      
+      // Dialog-Dropdowns:
+      fill2('instructor', instructorsSorted);
+      fill2('vehicle',    vehiclesSorted);
+      fill2('student',    studentsSorted, 'label', /* withEmpty */ true);   // <— LEERE OPTION
+      fill2('type',       typesSorted, 'name');
+    }
+
+    // API helpers
+    async function parseResponse(res){
+      const ct = res.headers.get('content-type') || '';
+      let body = null;
+      if (ct.includes('application/json')) {
+        body = await res.json().catch(()=> ({}));
+      } else {
+        const text = await res.text().catch(()=> '');
+        body = { error: text || undefined };
+      }
+      return { ok: res.ok, status: res.status, body };
+    }
+
+    async function createAppointment(payload){
+      const res = await fetch('/api/appointments/', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrftoken},
+        body:JSON.stringify(payload)
+      });
+      return parseResponse(res);
+    }
+    async function updateAppointment(id,payload){
+      const res = await fetch(`/api/appointments/${id}/`, {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrftoken},
+        body:JSON.stringify(payload)
+      });
+      return parseResponse(res);
+    }
+    async function deleteUnavailability(id){
+      // id kommt als "blk-12" -> Zahl extrahieren
+      const num = String(id).replace(/^blk-/, '');
+      const res = await fetch(`/api/unavailabilities/${num}/`, {
+        method: 'DELETE',
+        headers: {'X-CSRFToken': csrftoken}
+      });
+      return parseResponse(res);
+    }
+
+    async function updateUnavailability(id, payload){
+      const num = String(id).replace(/^blk-/, '');
+      const res = await fetch(`/api/unavailabilities/${num}/`, {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrftoken},
+        body: JSON.stringify(payload)
+      });
+      return parseResponse(res);
+    }
+
+    function reflectEntryKind(){
+      const kind = document.getElementById('entryKind').value;
+      document.querySelectorAll('.field-apt').forEach(el=>{
+        el.style.display = (kind === 'appointment') ? 'block' : 'none';
+      });
+    }
+
+    // Kalender
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadOptions();
+      // Map: studentId -> phone (falls /api/options/ es liefert)
+      let STUDENT_PHONE = {};
+      (OPTIONS?.students || []).forEach(s => {
+        if (s.phone) STUDENT_PHONE[String(s.id)] = s.phone;
+      });
+      initStudentCombo();
+      initDialogStudentCombo();
+      document.getElementById('entryKind')?.addEventListener('change', reflectEntryKind);
+
+      // Auswahl aus gespeichertem Zustand in die sichtbare Suche spiegeln
+      setStudentComboValue($('filterStudent').value || '');
+      // Einstellungen holen
+      SETTINGS = await fetch('/api/settings/').then(r=>r.json()).catch(()=>null);
+      if (!SETTINGS) {
+        SETTINGS = {
+          companyName: 'fahrstundenplaner',
+          firstDay: 1, weekNumbers: false,
+          slotMinTime: '06:00:00', slotMaxTime: '21:00:00',
+          slotDuration: '00:15:00', snapDuration: '00:15:00',
+          defaultNewDurationMin: 45
+        };
+      }
+      // Firmenname in Navbar/H1 setzen
+      const brandEl = document.querySelector('.navwrap > div:first-child');
+      if (brandEl) brandEl.textContent = SETTINGS.companyName;
+      const h1 = document.querySelector('h1');
+      if (h1) h1.textContent = SETTINGS.companyName;
+
+      // Restore
+      const saved = JSON.parse(localStorage.getItem('kalState') || '{}');
+      if (saved.instructor) $('filterInstructor').value = String(saved.instructor);
+      if (saved.vehicle)    $('filterVehicle').value    = String(saved.vehicle);
+      if (saved.student)    $('filterStudent').value    = String(saved.student);
+
+      // Später in den onchange-Handler einbauen:
+      function persistState(){
+        localStorage.setItem('kalState', JSON.stringify({
+          instructor: $('filterInstructor').value || null,
+          vehicle: $('filterVehicle').value || null,
+          student: $('filterStudent').value || null,
+          view: calendar.view.type,
+          date: calendar.getDate().toISOString()
+        }));
+      }
+      $('todayBtn').onclick = ()=>{ calendar.today(); updateTitleByView(); persistState(); };
+      $('prevBtn').onclick  = ()=>{ calendar.prev();  updateTitleByView(); persistState(); };
+      $('nextBtn').onclick  = ()=>{ calendar.next();  updateTitleByView(); persistState(); };
+      // --- Datum anzeigen -> Woche anspringen ---
+      $('gotoBtn').onclick  = ()=>{
+        const v = $('weekDate').value;
+        if (!v) return;
+        calendar.gotoDate(new Date(v));
+        updateTitleByView();
+        persistState();
+      };
+
+      $('filterInstructor').onchange =
+      $('filterVehicle').onchange =
+      $('filterStudent').onchange = ()=>{
+        calendar.refetchEvents();
+        updateTitleByView();
+        persistState();
+      };
+      function initStudentCombo(){
+        const root = $('studentCombo');
+        if (!root) return;
+
+        // Grundgerüst
+        root.innerHTML = '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'studentComboInput';
+        input.placeholder = 'Schüler suchen…';
+        input.autocomplete = 'off';
+        root.appendChild(input);
+
+        // Clear-Button (×)
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'clear hidden';
+        clearBtn.setAttribute('aria-label', 'Auswahl löschen');
+        clearBtn.innerHTML = '&times;';
+        // mousedown verhindert, dass der Blur sofort die Liste schließt bevor click feuert
+        clearBtn.addEventListener('mousedown', (e)=> e.preventDefault());
+        clearBtn.addEventListener('click', ()=>{
+          setValue('', '');
+          hide();
+          input.focus();
+        });
+        root.appendChild(clearBtn);
+
+        // Dropdown-Liste
+        const list = document.createElement('div');
+        list.className = 'dropdown';
+        list.id = 'studentComboList';
+        list.hidden = true;
+        root.appendChild(list);
+
+        const data = [...(OPTIONS?.students||[])].sort((a,b)=>
+          (a.label||'').localeCompare(b.label||'', 'de', {sensitivity:'base'})
+        );
+
+        const makeOpt = (id, label) => {
+          const div = document.createElement('div');
+          div.className = 'opt';
+          div.dataset.id = id;
+          div.textContent = label;
+          div.onclick = () => { setValue(id, label); hide(); input.focus(); };
+          return div;
+        };
+
+        function render(filter=''){
+          list.innerHTML = '';
+          const norm = s => (s||'').toLocaleLowerCase('de');
+          const f = norm(filter);
+
+          // "-- alle --" immer oben
+          list.appendChild(makeOpt('', '-- alle --'));
+
+          let count=0;
+          for (const s of data){
+            if (!f || norm(s.label).includes(f)){
+              list.appendChild(makeOpt(String(s.id), s.label));
+              count++;
+            }
+          }
+          if (count===0){
+            const empty = document.createElement('div');
+            empty.className='empty';
+            empty.textContent='Keine Treffer';
+            list.appendChild(empty);
+          }
+        }
+
+        function show(){ list.hidden = false; root.classList.add('open'); reflectClear(); }
+        function hide(){ list.hidden = true;  root.classList.remove('open'); activeIndex = -1; }
+
+        function reflectClear(){
+          // Zeige ×, wenn ein Wert gesetzt ist (im Input oder im versteckten Select)
+          const hasVal = !!(input.value || $('filterStudent').value);
+          clearBtn.classList.toggle('hidden', !hasVal);
+        }
+
+        function setValue(id, label){
+          $('filterStudent').value = id || '';
+          input.value = label || '';
+          reflectClear();
+          calendar?.refetchEvents();
+          updateTitleByView?.();
+
+          // Zustand speichern
+          try {
+            localStorage.setItem('kalState', JSON.stringify({
+              instructor: $('filterInstructor').value || null,
+              vehicle: $('filterVehicle').value || null,
+              student: $('filterStudent').value || null,
+              view: calendar?.view?.type,
+              date: calendar?.getDate?.().toISOString()
+            }));
+          } catch(e){}
+        }
+
+        // Interaktionen
+        input.addEventListener('focus', ()=>{ render(input.value); show(); });
+        input.addEventListener('input', ()=>{ render(input.value); show(); reflectClear(); });
+
+        document.addEventListener('click', (e)=>{
+          if (!root.contains(e.target)) hide();
+        });
+
+        // Tastatur-Navigation
+        let activeIndex = -1;
+        input.addEventListener('keydown', (e)=>{
+          const opts = Array.from(list.querySelectorAll('.opt'));
+          if (e.key==='ArrowDown'){
+            e.preventDefault(); show();
+            if (activeIndex < opts.length-1) activeIndex++;
+            setActive(opts, activeIndex);
+          } else if (e.key==='ArrowUp'){
+            e.preventDefault();
+            if (activeIndex>0) activeIndex--;
+            setActive(opts, activeIndex);
+          } else if (e.key==='Enter'){
+            e.preventDefault();
+            if (activeIndex>=0 && activeIndex<opts.length) {
+              opts[activeIndex].click();
+            } else {
+              // Wenn nichts aktiv, ersten Treffer (nach "-- alle --") nehmen
+              const first = opts[1];
+              if (first) first.click();
+            }
+          } else if (e.key==='Escape'){
+            hide();
+          }
+        });
+        function setActive(opts, i){
+          opts.forEach(el=>el.classList.remove('active'));
+          if (opts[i]){ opts[i].classList.add('active'); opts[i].scrollIntoView({block:'nearest'}); }
+        }
+
+        // Vorbelegung aus gespeichertem Zustand
+        const currentId = $('filterStudent').value;
+        const current   = data.find(s=> String(s.id) === String(currentId));
+        if (current) input.value = current.label;
+        reflectClear();
+      }
+
+      // ====== Such-Combo im TERMIN-DIALOG (Fahrschüler) ======
+      function initDialogStudentCombo(){
+        const root = document.getElementById('dlgStudentCombo');
+        if (!root) return;
+
+        root.innerHTML = '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'dlgStudentComboInput';
+        input.placeholder = 'Schüler suchen…';
+        input.autocomplete = 'off';
+        root.appendChild(input);
+
+        // Clear (×)
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'clear hidden';
+        clearBtn.setAttribute('aria-label', 'Auswahl löschen');
+        clearBtn.innerHTML = '&times;';
+        clearBtn.addEventListener('mousedown', (e)=> e.preventDefault());
+        clearBtn.addEventListener('click', ()=>{ setValue('', ''); hide(); input.focus(); });
+        root.appendChild(clearBtn);
+
+        // Dropdown
+        const list = document.createElement('div');
+        list.className = 'dropdown';
+        list.id = 'dlgStudentComboList';
+        list.hidden = true;
+        root.appendChild(list);
+
+        const data = [...(OPTIONS?.students||[])].sort((a,b)=>
+          (a.label||'').localeCompare(b.label||'', 'de', {sensitivity:'base'})
+        );
+
+        const makeOpt = (id, label) => {
+          const div = document.createElement('div');
+          div.className = 'opt';
+          div.dataset.id = id;
+          div.textContent = label;
+          div.onclick = () => { setValue(id, label); hide(); input.focus(); };
+          return div;
+        };
+
+        function render(filter=''){
+          list.innerHTML = '';
+          const norm = s => (s||'').toLocaleLowerCase('de');
+          const f = norm(filter);
+
+          list.appendChild(makeOpt('', '-- alle --'));
+
+          let count=0;
+          for (const s of data){
+            if (!f || norm(s.label).includes(f)){
+              list.appendChild(makeOpt(String(s.id), s.label));
+              count++;
+            }
+          }
+          if (count===0){
+            const empty = document.createElement('div');
+            empty.className='empty';
+            empty.textContent='Keine Treffer';
+            list.appendChild(empty);
+          }
+        }
+
+        function show(){ list.hidden = false; root.classList.add('open'); reflectClear(); }
+        function hide(){ list.hidden = true;  root.classList.remove('open'); activeIndex = -1; }
+
+        function reflectClear(){
+          const hasVal = !!(input.value || document.getElementById('student').value);
+          clearBtn.classList.toggle('hidden', !hasVal);
+        }
+
+        function setValue(id, label){
+          // Hidden Select setzen – das liest dein "Speichern"-Code aus
+          document.getElementById('student').value = id || '';
+          input.value = label || '';
+          reflectClear();
+        }
+
+        // Interaktion
+        input.addEventListener('focus', ()=>{ render(input.value); show(); });
+        input.addEventListener('input', ()=>{ render(input.value); show(); reflectClear(); });
+
+        document.addEventListener('click', (e)=>{
+          if (!root.contains(e.target)) hide();
+        });
+
+        // Tastatur
+        let activeIndex = -1;
+        input.addEventListener('keydown', (e)=>{
+          const opts = Array.from(list.querySelectorAll('.opt'));
+          if (e.key==='ArrowDown'){
+            e.preventDefault(); show();
+            if (activeIndex < opts.length-1) activeIndex++;
+            setActive(opts, activeIndex);
+          } else if (e.key==='ArrowUp'){
+            e.preventDefault();
+            if (activeIndex>0) activeIndex--;
+            setActive(opts, activeIndex);
+          } else if (e.key==='Enter'){
+            e.preventDefault();
+            if (activeIndex>=0 && activeIndex<opts.length) {
+              opts[activeIndex].click();
+            } else {
+              const first = opts[1]; if (first) first.click();
+            }
+          } else if (e.key==='Escape'){
+            hide();
+          }
+        });
+        function setActive(opts, i){
+          opts.forEach(el=>el.classList.remove('active'));
+          if (opts[i]){ opts[i].classList.add('active'); opts[i].scrollIntoView({block:'nearest'}); }
+        }
+
+        // Vorbelegung (wenn schon ein Schüler gesetzt ist)
+        const curId = document.getElementById('student').value;
+        const cur = data.find(s=> String(s.id) === String(curId));
+        if (cur) input.value = cur.label;
+        reflectClear();
+      }
+
+      // Helfer zum externen Setzen (z.B. beim Prefill/Bearbeiten)
+      function setDialogStudentComboValue(idOrEmpty){
+        const hidden = document.getElementById('student');
+        const input  = document.getElementById('dlgStudentComboInput');
+        hidden.value = idOrEmpty || '';
+        if (input){
+          if (!idOrEmpty) input.value = '';
+          else {
+            const s = (OPTIONS?.students||[]).find(x=> String(x.id)===String(idOrEmpty));
+            input.value = s ? s.label : '';
+          }
+          const clearBtn = document.querySelector('#dlgStudentCombo .clear');
+          if (clearBtn) clearBtn.classList.toggle('hidden', !(input.value || hidden.value));
+          // Telefonfeld passend zum gewählten Schüler setzen (falls bekannt)
+          const sid = String(idOrEmpty || '');
+          $('phone').value = STUDENT_PHONE[sid] || '';
+        }
+      }
+
+
+      // Helfer, um von außen zu cleare
+      function setStudentComboValue(idOrEmpty){
+        $('filterStudent').value = idOrEmpty || '';
+        const input = $('studentComboInput');
+        if (input){
+          if (!idOrEmpty) { input.value=''; }
+          else {
+            const s = (OPTIONS?.students||[]).find(x=> String(x.id)===String(idOrEmpty));
+            input.value = s ? s.label : '';
+          }
+          // Clear-Button aktualisieren
+          const clearBtn = document.querySelector('#studentCombo .clear');
+          if (clearBtn) clearBtn.classList.toggle('hidden', !(input.value || $('filterStudent').value));
+        }
+      }
+
+      // --- Fahrlehrer vor/zurück ---
+      function rotateInstructor(step){
+        const list = (OPTIONS?.instructors || []);
+        if (!list.length) return;
+        const sel = $('filterInstructor');
+        let idx = list.findIndex(i => String(i.id) === sel.value);
+        if (idx < 0) idx = 0;
+        idx = (idx + step + list.length) % list.length;
+        sel.value = String(list[idx].id);
+        calendar.refetchEvents();
+        updateTitleByView();
+      }
+      $('prevInstructor').onclick = ()=>rotateInstructor(-1);
+      $('nextInstructor').onclick = ()=>rotateInstructor(1);
+
+      
+      
+      // --- View-Schalter ---
+      $('viewDay').onclick  = ()=>{ calendar.changeView('timeGridDay'); updateTitleByView();  $('viewDay').classList.add('primary'); $('viewWeek').classList.remove('primary'); $('viewList').classList.remove('primary'); };
+      $('viewWeek').onclick = ()=>{ calendar.changeView('timeGridWeek'); updateTitleByView(); $('viewWeek').classList.add('primary'); $('viewDay').classList.remove('primary'); $('viewList').classList.remove('primary'); };
+      $('viewList').onclick = ()=>{ calendar.changeView('listWeek'); updateTitleByView();     $('viewList').classList.add('primary'); $('viewDay').classList.remove('primary'); $('viewWeek').classList.remove('primary'); };
+
+      const fetchEvents = async (info, success, failure) => {
+        const q = new URLSearchParams({
+          start: info.startStr,
+          end: info.endStr,
+          instructor: $('filterInstructor').value || '',
+          vehicle: $('filterVehicle').value || '',
+          student: $('filterStudent').value || ''
+        });
+        try {
+          const [apRes, blRes] = await Promise.all([
+            fetch('/api/appointments/?' + q.toString()),
+            fetch('/api/unavailabilities/?' + new URLSearchParams({
+              start: info.startStr,
+              end: info.endStr,
+              instructor: $('filterInstructor').value || ''
+            }).toString())
+          ]);
+          const [appts, blocks] = await Promise.all([apRes.json(), blRes.json()]);
+          success([...(appts||[]), ...(blocks||[])]);
+        } catch (err) {
+          failure(err);
+        }
+      };
+
+
+      let DAY_TOTALS = {};  // 'YYYY-MM-DD' -> Minuten
+
+      // ersetzt deine aktuelle Version
+      function recomputeDayTotals(){
+        DAY_TOTALS = {};
+        const evs = calendar.getEvents();
+
+        for (const e of evs) {
+          // <<< NEU: Sperrzeiten NICHT mitzählen
+          if (e.extendedProps?.kind === 'block') continue;
+
+          // (optional) nur echte Fahrstunden zählen:
+          // if (!e.extendedProps?.typeId) continue;
+
+          const start = e.start;
+          const end   = e.end || new Date(start.getTime() + 45*60000);
+          const key   = start.toISOString().slice(0,10);
+          const mins  = Math.round((end - start) / 60000);
+          DAY_TOTALS[key] = (DAY_TOTALS[key] || 0) + mins;
+        }
+      }
+
+      // (optional) unverändert lassen – ich zeig nur, wo die Summe herkommt
+      function weekTotalMin(){
+        // DAY_TOTALS enthält nach obigem Filter bereits KEINE Sperrzeiten mehr
+        return Object.values(DAY_TOTALS || {}).reduce((a,b)=>a+(b||0), 0);
+      }
+
+
+      // paintHeaderMinutes() :
+      function paintHeaderMinutes(){
+        const cells = document.querySelectorAll('.fc-timegrid .fc-col-header th[data-date]');
+        const wkTotal = weekTotalMin();
+
+        cells.forEach(th=>{
+          const dStr = th.getAttribute('data-date');
+          const d = new Date(dStr);
+          const key = dStr.slice(0,10);
+          const isSunday = d.getDay() === 0;  // 0 = Sonntag
+
+          let line = th.querySelector('.fc-minsum');
+          if (!line) {
+            const wrap = th.querySelector('.hdr-wrap') || th;
+            line = document.createElement('div');
+            line.className = 'fc-minsum';
+            wrap.appendChild(line);
+          }
+
+          if (isSunday) {
+            line.textContent = wkTotal ? `${wkTotal} Min (Woche)` : '';
+            line.style.fontWeight = '700';
+          } else {
+            const total = DAY_TOTALS[key] || 0;
+            line.textContent = total ? `${total} Min.` : '';
+            line.style.fontWeight = '';
+          }
+        });
+      }
+
+
+      // === Neuer-Termin-Helfer ===
+      function defaultDurationMin(){
+        const sel = $('dur');
+        return sel && sel.value ? parseInt(sel.value,10) : (SETTINGS?.defaultNewDurationMin || 45);
+      }
+      function prefillFromFilters(){
+        if ($('filterInstructor').value) $('instructor').value = $('filterInstructor').value;
+        if ($('filterVehicle').value)    $('vehicle').value    = $('filterVehicle').value;
+        //if ($('filterStudent').value)    $('student').value    = $('filterStudent').value;
+        if (document.getElementById('student')) {
+          setDialogStudentComboValue(document.getElementById('student').value);
+        }
+      }
+      function openNewAt(startDate, endDate){
+        EDIT_ID = null;
+        document.getElementById('entryKind').value = 'appointment'; // Standard
+        reflectEntryKind();
+        $('deleteBtn').style.display = 'none';
+
+        const start = new Date(startDate);
+        const end   = endDate ? new Date(endDate) : new Date(start.getTime() + defaultDurationMin()*60000);
+
+        $('start').value = toLocalInputValue(start.toISOString());
+        $('end').value   = toLocalInputValue(end.toISOString());
+        $('phone').value = ''; // Telefonfeld leeren
+        $('notes').value = '';
+
+        prefillFromFilters();
+        // setDialogStudentComboValue(document.getElementById('student').value);
+        $('student').value = '';           // Select leeren
+        setDialogStudentComboValue('');    // sichtbares Suchfeld leeren
+        openModal();
+      }
+
+
+      // ===== Titel: "<Fahrlehrer>, <26. Aug – 31. Aug>" =====
+      function startOfWeek(d){
+        const x = new Date(d);
+        const dow = (x.getDay() + 6) % 7; // Montag = 0
+        x.setDate(x.getDate() - dow);
+        x.setHours(0,0,0,0);
+        return x;
+      }
+      function endOfWeek(d){
+        const s = startOfWeek(d);
+        const e = new Date(s);
+        e.setDate(s.getDate() + 6);
+        e.setHours(23,59,59,999);
+        return e;
+      }
+      const fmtLeft  = new Intl.DateTimeFormat('de-DE', { day:'2-digit', month:'short' });
+      const fmtRight = new Intl.DateTimeFormat('de-DE', { day:'2-digit', month:'short', year:'numeric' });
+      function formatWeekRange(s,e){
+        return `${fmtLeft.format(s)} – ${fmtRight.format(e)}`;
+      }
+      function currentInstructorName(){
+        const sel = $('filterInstructor');
+        if (!sel || !sel.value) return 'Alle Fahrlehrer';
+        const opt = sel.options[sel.selectedIndex];
+        return opt ? opt.textContent : 'Fahrlehrer';
+      }
+      function updateTitleByView(arg){
+        const start = arg?.start ? arg.start : calendar.view.currentStart;
+        const s = startOfWeek(start);
+        const e = endOfWeek(start);
+        const name = currentInstructorName();
+        const el = $('calTitle');
+        if (el) el.textContent = `${name}, ${formatWeekRange(s,e)}`;
+      }
+      // --- Responsive initial view (iPhone = Tag, iPad/Desk = Woche) ---
+        const isPhone = window.matchMedia('(max-width: 768px)').matches;
+        const initialView = isPhone ? 'timeGridDay' : 'timeGridWeek';
+
+
+      calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+        initialView: initialView,
+        // Kopf-/Zeitdarstellung
+        locale: 'de',
+        noEventsText: 'Keine Termine in diesem Zeitraum',
+        timeZone: 'local',
+        headerToolbar: false,
+        firstDay: SETTINGS.firstDay,
+        weekNumbers: SETTINGS.weekNumbers,
+        
+        dayHeaderContent: function(arg){
+          const map = ['SON','MON','DIE','MIT','DON','FRE','SAM'];
+          const d = arg.date;
+          const dow = map[d.getDay()];
+          const day = d.getDate();
+          const isToday = (new Date()).toDateString() === d.toDateString();
+          return {
+            html: `<div class="hdr-wrap">
+                    <div class="hdr-dow">${dow}</div>
+                    <div class="hdr-date" style="${isToday?'':'background:transparent;color:inherit;padding:0'}">${day}</div>
+                  </div>`
+          };
+        },
+        stickyHeaderDates: true,
+        height: 'auto',
+        expandRows: true,
+
+        // Raster
+        allDaySlot: false,
+        slotMinTime: SETTINGS.slotMinTime,
+        slotMaxTime: SETTINGS.slotMaxTime,
+        slotDuration: SETTINGS.slotDuration,
+        snapDuration: SETTINGS.snapDuration,
+        slotLabelInterval: '01:00',
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+
+        // Mobile usability
+        scrollTime: '08:00:00',
+        scrollTimeReset: false,
+        handleWindowResize: true,
+        windowResize: function() {
+          const phone = window.matchMedia('(max-width: 768px)').matches;
+          const target = phone ? 'timeGridDay' : 'timeGridWeek';
+          if (calendar.view.type !== target) {
+            calendar.changeView(target);
+          }
+        },
+        eventLongPressDelay: 0,     // schneller Long-Press auf Touch
+        dragScroll: true,
+
+        // Interaktion
+        nowIndicator: true,
+        selectable: true,
+        selectMirror: true,
+        editable: true,
+        selectLongPressDelay: 0,
+        selectMinDistance: 1,
+        eventStartEditable: true,
+        eventDurationEditable: true,
+        dragRevertDuration: 0,
+        eventOverlap: false,
+
+
+        // Datenquelle (mit Filtern)
+        events: fetchEvents,
+
+        // === Klassen für Events setzen  ===
+        eventClassNames: function (arg) {
+          return (arg.event.extendedProps?.kind === 'block') ? ['is-block'] : [];
+        },
+
+        eventsSet: function(){
+          recomputeDayTotals();
+          paintHeaderMinutes();
+          updateTitleByView();
+        },
+        datesSet: function(arg){
+          setTimeout(() => {
+            paintHeaderMinutes();
+            updateTitleByView(arg);
+            persistState();
+          }, 0);
+        },
+
+        // Darstellung der Event-Blöcke (Zeilen: Zeit, Name, Typ, Notiz (unten))
+        eventContent: function(arg) {
+          const isBlock = arg.event.extendedProps?.kind === 'block';
+          if (isBlock) {
+            const wrap = document.createElement('div');
+            wrap.className = 'evtBlock';
+
+            // Zeiten formatieren
+            const fmt = new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false});
+            const t1 = fmt.format(arg.event.start);
+            const t2 = arg.event.end ? fmt.format(arg.event.end) : '';
+
+            // Fahrlehrername – erst aus extendedProps, sonst aus OPTIONS nachschlagen
+            let instName = arg.event.extendedProps?.instructorName || '';
+            if (!instName && window.OPTIONS?.instructors) {
+              const m = OPTIONS.instructors.find(i => String(i.id) === String(arg.event.extendedProps?.instructorId));
+              instName = m?.label || '';
+            }
+
+            const reason = (arg.event.extendedProps?.reason || '').trim();
+
+            // Info-Box (liegt „über“ dem Kreuz)
+            const info = document.createElement('div');
+            info.className = 'info';
+            info.innerHTML = `
+              <div class="line time">${t1}${t2 ? ' – ' + t2 : ''}</div>
+              <div class="line title">Frei/Urlaub${reason ? ': ' + reason : ''}</div>
+              ${instName ? `<div class="line inst">${instName}</div>` : ''}
+            `;
+            wrap.appendChild(info);
+
+            return { domNodes: [wrap] };
+          }
+
+          // === mein bisheriger Code für "normale" Termine ===
+          const bg = arg.event.extendedProps.typeColor || arg.event.backgroundColor || '#3b82f6';
+          function textColorFor(hex){
+            const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+            if(!m) return '#fff';
+            const r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16);
+            const yiq=(r*299 + g*587 + b*114)/1000;
+            return yiq >= 150 ? '#111' : '#fff';
+          }
+          const tc = textColorFor(bg);
+
+          const wrap = document.createElement('div');
+          wrap.className = 'evtGBlock';
+          wrap.style.background = bg;
+          wrap.style.color = tc;
+
+          const fmt = new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false});
+          const t1 = fmt.format(arg.event.start);
+          const t2 = arg.event.end ? fmt.format(arg.event.end) : '';
+          const timeEl = document.createElement('div');
+          timeEl.className = 'time';
+          timeEl.textContent = t2 ? `${t1} – ${t2}` : t1;
+          wrap.appendChild(timeEl);
+
+          const fullStudentName = arg.event.extendedProps.studentName || arg.event.title || '';
+
+          // Anzeige-only: Vorname abkürzen, damit im kleinen Slot die Typ-Bezeichnung sichtbar bleibt.
+          // DB bleibt unverändert. Unterstützt "Vorname Nachname" und "Nachname, Vorname".
+          function abbreviateStudentName(name){
+            const n = (name || '').trim();
+            if (!n) return '';
+
+            // Format: "Nachname, Vorname"
+            if (n.includes(',')){
+              const parts = n.split(',').map(p=>p.trim()).filter(Boolean);
+              if (parts.length >= 2){
+                const last = parts[0];
+                const first = parts[1].split(/\s+/).filter(Boolean)[0] || '';
+                return first ? `${first[0].toUpperCase()}. ${last}` : last;
+              }
+            }
+
+            // Format: "Vorname Nachname ..." -> nur Vorname initial + letzter Teil als Nachname
+            const parts = n.split(/\s+/).filter(Boolean);
+            if (parts.length >= 2){
+              const first = parts[0];
+              const last  = parts[parts.length - 1];
+              return `${first[0].toUpperCase()}. ${last}`;
+            }
+
+            return n;
+          }
+	  /* --- Aktivieren für vollen Namen. Z.B: Max Mustermann --- */
+          const studentName = (fullStudentName || '').trim();
+
+          /* # Aktivieren für Vornamen abkürzen | z.B: M. Mustermann 
+          const studentName = abbreviateStudentName(fullStudentName);
+          */
+
+          const studentEl = document.createElement('div');
+          studentEl.className = 'student';
+          studentEl.textContent = studentName;
+          if (studentName && fullStudentName && studentName !== fullStudentName) {
+            studentEl.title = fullStudentName;
+          }
+          wrap.appendChild(studentEl);
+
+          const typeName = arg.event.extendedProps.typeName || '';
+          const typeEl = document.createElement('div');
+          typeEl.className = 'type';
+          typeEl.textContent = typeName;
+          wrap.appendChild(typeEl);
+
+          const noteText = (arg.event.extendedProps.notes || '').trim();
+          if (noteText) {
+            const notesEl = document.createElement('div');
+            notesEl.className = 'notes';
+            notesEl.textContent = noteText;
+            wrap.appendChild(notesEl);
+          }
+
+          return { domNodes: [wrap] };
+        },
+
+
+
+        // Auswahl → Neuer Termin
+        // Klick auf eine Zelle -> direkt Neuer Termin
+        dateClick: function(info){
+          // info.date ist ein Date (lokal)
+          openNewAt(info.date);
+        },
+
+        // Ziehen über einen Bereich -> Neuer Termin mit Länge der Auswahl
+        select: function(info){
+          openNewAt(info.start, info.end);
+        },
+
+
+        // Klick → Bearbeiten
+        eventClick: function(info){
+          const isBlock = info.event.extendedProps?.kind === 'block';
+          EDIT_ID = info.event.id;
+          $('deleteBtn').style.display = 'inline-block';
+            if (isBlock) {
+            // Dialog auf „Sperrzeit“ umschalten
+            document.getElementById('entryKind').value = 'block';
+            reflectEntryKind();
+
+            $('instructor').value = String(info.event.extendedProps.instructorId || '');
+            $('start').value      = toLocalInputValue(info.event.start.toISOString());
+            $('end').value        = toLocalInputValue(info.event.end.toISOString());
+            $('notes').value      = info.event.extendedProps.reason || '';
+            // Telefonnummer anzeigen, falls im Event vorhanden
+            $('phone').value = info.event.extendedProps.phone || '';
+            openModal();
+            return;
+          }
+          $('instructor').value = info.event.extendedProps.instructorId;
+          $('student').value   = info.event.extendedProps.studentId;
+          setDialogStudentComboValue($('student').value);
+          $('vehicle').value   = info.event.extendedProps.vehicleId;
+          $('type').value      = info.event.extendedProps.typeId;
+          $('start').value     = toLocalInputValue(info.event.start.toISOString());
+          $('end').value       = toLocalInputValue(info.event.end.toISOString());
+          $('notes').value     = info.event.extendedProps.notes || '';
+          openModal();
+        },
+
+        // Drag & Drop speichern (mit Konfliktrevert)
+        eventDrop: async function(info) {
+          const isBlock = info.event.extendedProps?.kind === 'block';
+          const payload = {
+            start: info.event.start.toISOString(),
+            end:   (info.event.end || info.event.start).toISOString()
+          };
+          const res = isBlock
+            ? await updateUnavailability(info.event.id, payload)
+            : await updateAppointment(info.event.id, payload);
+
+          if (!(res.ok && res.body.ok !== false)) {
+            const msg = res.status === 409
+              ? ('Zeitkonflikt beim Verschieben: ' + (res.body?.error || 'Überschneidung mit einem bestehenden Eintrag.'))
+              : ('Fehler beim Verschieben (' + (res.status || '???') + '): ' + (res.body?.error || 'Unbekannt'));
+            alert(msg);
+            info.revert();
+          } else {
+            calendar.refetchEvents();
+          }
+        },
+
+        eventDidMount: function(info){
+          if (info.event.extendedProps?.kind === 'block') {
+            const fmt = new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false});
+            const t1 = fmt.format(info.event.start);
+            const t2 = info.event.end ? fmt.format(info.event.end) : '';
+            const inst = info.event.extendedProps?.instructorName || '';
+            const reason = (info.event.extendedProps?.reason || '').trim();
+            info.el.title = [
+              'Frei/Urlaub',
+              reason && `Grund: ${reason}`,
+              inst && `Fahrlehrer: ${inst}`,
+              t2 ? `Zeit: ${t1} – ${t2}` : `Zeit: ${t1}`
+            ].filter(Boolean).join(' · ');
+          }
+        },
+
+
+        eventResize: async function(info) {
+          const isBlock = info.event.extendedProps?.kind === 'block';
+          const payload = {
+            start: info.event.start.toISOString(),
+            end:   info.event.end.toISOString()
+          };
+          const res = isBlock
+            ? await updateUnavailability(info.event.id, payload)
+            : await updateAppointment(info.event.id, payload);
+
+          if (!(res.ok && res.body.ok !== false)) {
+            const msg = res.status === 409
+              ? ('Zeitkonflikt bei der Daueränderung: ' + (res.body?.error || 'Überschneidung mit einem bestehenden Eintrag.'))
+              : ('Fehler bei der Daueränderung (' + (res.status || '???') + '): ' + (res.body?.error || 'Unbekannt'));
+            alert(msg);
+            info.revert();
+          } else {
+            calendar.refetchEvents();
+          }
+        },
+      });
+
+      calendar.render();
+
+            // ==== Allgemeine Wochen-Notizen (NICHT fahrlehrerbezogen) ====
+      // Wir speichern pro Kalenderwoche unter: notes:week:<YYYY-MM-DD> (Montag der Woche)
+      // function notesKey(){
+      //   const s = startOfWeek(calendar.getDate());
+      //   return `notes:week:${s.toISOString().slice(0,10)}`;
+      // }
+
+      // // Liefert ISO "YYYY-MM-DD" (Montag der Woche)
+      // function weekStartISO(){
+      //   const s = startOfWeek(calendar.getDate());
+      //   return s.toISOString().slice(0,10);
+      // }
+      // async function loadNotes(){
+      //   const iso = weekStartISO();
+      //   try{
+      //     const r = await fetch(`/api/week-notes/${iso}/`);
+      //     const data = await r.json();
+      //     document.getElementById('np-text').value = (data?.text || '');
+      //     const st = document.getElementById('np-status'); if (st) st.textContent = 'geladen';
+      //   }catch(e){
+      //     // Fallback leer
+      //     document.getElementById('np-text').value = '';
+      //     const st = document.getElementById('np-status'); if (st) st.textContent = '—';
+      //   }
+      // }
+      // async function saveNotes(){
+      //   const iso = weekStartISO();
+      //   const el = document.getElementById('np-text');
+      //   try{
+      //     const r = await fetch(`/api/week-notes/${iso}/`, {
+      //       method: 'PUT',
+      //       headers: {'Content-Type':'application/json','X-CSRFToken': csrftoken},
+      //       body: JSON.stringify({ text: el.value || '' })
+      //     });
+      //     const st = document.getElementById('np-status');
+      //     if (st) { st.textContent = r.ok ? 'gespeichert' : 'Fehler'; setTimeout(()=> st.textContent='', 1200); }
+      //   }catch(e){
+      //     const st = document.getElementById('np-status');
+      //     if (st) { st.textContent = 'Fehler'; setTimeout(()=> st.textContent='', 1200); }
+      //   }
+      // }
+
+      // // Buttons / Autosave
+      // document.getElementById('np-save')?.addEventListener('click', saveNotes);
+      // let npTimer = null;
+      // document.getElementById('np-text')?.addEventListener('input', ()=>{
+      //   const st = document.getElementById('np-status');
+      //   if (st) st.textContent = '…';
+      //   clearTimeout(npTimer);
+      //   npTimer = setTimeout(saveNotes, 800);
+      // });
+
+      // // Beim Wochenwechsel neu laden
+      // calendar.on('datesSet', loadNotes);
+
+      // // Initial laden (nach calendar.render())
+      // loadNotes();
+
+      // ===== Fahrlehrer-spezifische WeekNotes =====
+      function getSelectedInstructorId(){
+        const el = document.getElementById('filterInstructor'); // <- mein Dropdown
+        if (!el) return null;
+        const v = el.value;
+        return v && /^\d+$/.test(v) ? parseInt(v,10) : null;
+      }
+      function formatWeekLabel(d){
+        const fmt = new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit'});
+        const e = new Date(d); e.setDate(e.getDate()+6);
+        return `(${fmt.format(d)} – ${fmt.format(e)})`;
+      }
+
+      async function loadWeekNote(weekStartDate, instructorId){
+        const ymd = weekStartDate.toISOString().slice(0,10);
+        const q = new URLSearchParams();
+        if (instructorId) q.set("instructor", instructorId);
+        const res = await fetch(`/api/week-note/${ymd}/?` + q.toString(), { credentials:"same-origin" });
+        const data = await res.json();
+        document.getElementById("week-note").value = data.text || "";
+        const badge = document.getElementById("week-note-scope");
+        if (badge) badge.textContent = data.scope === "specific" ? "Fahrlehrer-Notiz" : "Globale Notiz";
+        const wl = document.getElementById("week-note-weeklabel");
+        if (wl) wl.textContent = formatWeekLabel(weekStartDate);
+        const st = document.getElementById('np-status'); if (st) st.textContent = 'geladen';
+      }
+
+      async function saveWeekNote(weekStartDate, instructorId){
+        const ymd = weekStartDate.toISOString().slice(0,10);
+        const q = new URLSearchParams();
+        if (instructorId) q.set("instructor", instructorId);
+        const text = document.getElementById("week-note").value.trim();
+        const res = await fetch(`/api/week-note/${ymd}/?` + q.toString(), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrftoken },
+          body: JSON.stringify({ text })
+        });
+        const st = document.getElementById('np-status');
+        if (st) { st.textContent = res.ok ? 'gespeichert' : 'Fehler'; setTimeout(()=> st.textContent='', 1200); }
+      }
+
+      let CURRENT_WEEK_START = startOfWeek(calendar.getDate());
+
+      // initial laden
+      loadWeekNote(CURRENT_WEEK_START, getSelectedInstructorId());
+
+      // bei Wochenwechsel neu laden
+      calendar.setOption('datesSet', (info) => {
+        CURRENT_WEEK_START = startOfWeek(info.start);
+        loadWeekNote(CURRENT_WEEK_START, getSelectedInstructorId());
+      });
+
+      // bei Fahrlehrerwechsel neu laden
+      document.getElementById('filterInstructor')?.addEventListener('change', () => {
+        loadWeekNote(CURRENT_WEEK_START, getSelectedInstructorId());
+      });
+
+      // Speichern-Button + Autosave
+      document.getElementById('week-note-save')?.addEventListener('click', () => {
+        saveWeekNote(CURRENT_WEEK_START, getSelectedInstructorId());
+      });
+      let npTimer = null;
+      document.getElementById('week-note')?.addEventListener('input', ()=>{
+        const st = document.getElementById('np-status');
+        if (st) st.textContent = '…';
+        clearTimeout(npTimer);
+        npTimer = setTimeout(() => saveWeekNote(CURRENT_WEEK_START, getSelectedInstructorId()), 800);
+      });
+
+
+      updateTitleByView();
+      // Externe Toolbar-Buttons steuern den Kalender
+      $('todayBtn').onclick = ()=>{ calendar.today(); updateTitleByView(); };
+      $('prevBtn').onclick  = ()=>{ calendar.prev();  updateTitleByView(); };
+      $('nextBtn').onclick  = ()=>{ calendar.next();  updateTitleByView(); };
+      $('clearFilters').onclick = ()=>{ $('filterInstructor').value=''; $('filterVehicle').value=''; $('filterStudent').value=''; calendar.refetchEvents(); };
+      
+
+      const newBtn = $('newBtn');
+      if (newBtn) {
+        newBtn.onclick = ()=>{
+          const now = new Date(); now.setMinutes(0,0,0); now.setHours(8);
+          openNewAt(now);
+        };
+      }
+
+      // Wenn Fahrttyp geändert wird und wir gerade einen NEUEN Termin anlegen,
+      // setze die Endzeit = Start + Standarddauer des Typs.
+      $('type').addEventListener('change', () => {
+        if (EDIT_ID) return; // nur bei neuen Terminen
+        const tId = Number($('type').value);
+        const t = TYPES_BY_ID[tId];
+        if (!t) return;
+        const startVal = $('start').value;
+        if (!startVal) return;
+        const mins = parseInt(t.default_duration_min || 45, 10);
+        const start = new Date(startVal);
+        const end = new Date(start.getTime() + mins*60000);
+        const pad = n => String(n).padStart(2,'0');
+        const loc = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`;
+        $('end').value = `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`;
+      });
+
+      document.getElementById('student').addEventListener('change', () => {
+        const sid = document.getElementById('student').value;
+        $('phone').value = STUDENT_PHONE[String(sid)] || '';
+      });
+
+    });
+
+    // Speichern/Löschen
+    $('saveBtn').onclick = async (e)=>{
+      const btn = e.currentTarget;
+
+      const kind = document.getElementById('entryKind').value; // 'appointment' | 'block'
+      const instrVal = document.getElementById('instructor').value;
+      const startVal = document.getElementById('start').value;
+      const endVal   = document.getElementById('end').value;
+
+      if (!instrVal){
+        alert('Bitte Fahrlehrer auswählen.');
+        return;
+      }
+      if (!startVal || !endVal){
+        alert('Bitte Start- und Endzeit setzen.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Speichere…';
+
+      try {
+        if (kind === 'block'){
+          const payload = {
+            instructorId: Number(instrVal),
+            start: fromLocalInputValue(startVal),
+            end:   fromLocalInputValue(endVal),
+            reason: (document.getElementById('notes').value || '').trim()
+          };
+          let res;
+          if (EDIT_ID && String(EDIT_ID).startsWith('blk-')){
+            res = await updateUnavailability(EDIT_ID, payload);
+          } else {
+            res = await fetch('/api/unavailabilities/', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json','X-CSRFToken': csrftoken},
+              body: JSON.stringify(payload)
+            }).then(parseResponse);
+          }
+          if (!res.ok){ alert(res.body?.error || 'Fehler beim Speichern'); return; }
+          calendar.refetchEvents();
+          closeModal();
+          return;
+        }
+
+        // ===== normaler Termin =====
+        const studVal  = document.getElementById('student').value;
+        const vehVal   = document.getElementById('vehicle').value;
+        const typeVal  = document.getElementById('type').value;
+
+        if (!studVal || !vehVal || !typeVal) {
+          alert('Bitte Fahrschüler, Fahrzeug und Fahrttyp auswählen.');
+          return;
+        }
+
+        const payload = {
+          instructorId: Number(instrVal),
+          studentId: Number(studVal),
+          vehicleId: Number(vehVal),
+          typeId: Number(typeVal),
+          start: fromLocalInputValue(startVal),
+          end:   fromLocalInputValue(endVal),
+          notes: document.getElementById('notes').value
+        };
+
+        const res = EDIT_ID
+          ? await updateAppointment(EDIT_ID, payload)
+          : await createAppointment(payload);
+
+        if (res.ok && (res.body?.ok !== false)) {
+          calendar.refetchEvents();
+          closeModal();
+        } else {
+          const msg =
+            res.status === 409
+              ? ('Zeitkonflikt: ' + (res.body?.error || 'Der Termin überschneidet sich mit einem bestehenden.'))
+              : ((res.body?.error || 'Unbekannt'));
+          alert(msg);
+        }
+
+      } catch(err){
+        alert('Netzwerkfehler: ' + (err?.message || err));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Speichern';
+      }
+    };
+
+    $('deleteBtn').onclick = async ()=>{
+      if (!EDIT_ID) return;
+      if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+
+      let res;
+      if (String(EDIT_ID).startsWith('blk-')) {
+        res = await deleteUnavailability(EDIT_ID);
+      } else {
+        res = await deleteAppointment(EDIT_ID);
+      }
+      if (res.ok){ calendar.refetchEvents(); closeModal(); }
+      else alert(res.body?.error || 'Fehler beim Löschen');
+    };
+
+    async function deleteAppointment(id){
+      const res = await fetch(`/api/appointments/${id}/`, {
+        method:'DELETE',
+        headers:{'X-CSRFToken': csrftoken}
+      });
+      return parseResponse(res);
+    }
+
+  </script>
+</body>
+</html>

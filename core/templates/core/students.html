@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrschüler – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* Schlankes, eigenes Styling (ohne Framework) */
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f7f7f8;}
+    .nav{background:#111827;color:#fff;}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .navwrap{max-width:none;margin:0;padding:10px 14px;display:flex;gap:12px;align-items:center}
+    .nav a{color:#cbd5e1;text-decoration:none;padding:6px 10px;border-radius:6px}
+    .nav a:hover,.nav a.active{background:rgba(255,255,255,.12);color:#fff}
+    .wrap{max-width:none;margin:18px 0;padding:0 14px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+    .grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+    .row{display:flex;gap:8px}
+    input,textarea{height:36px;border:1px solid #d1d5db;border-radius:8px;padding:0 10px}
+    textarea{height:auto;padding:8px;grid-column:1 / -1}
+    .btn{padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .btn.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+    .btn.danger{background:#dc2626;border-color:#dc2626;color:#fff}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee}
+
+    /* Tabelle scrollbar: ~6-7 Zeilen Ansicht mit sticky Header */
+    .table-scroll{
+      max-height: 300px;           /* sichtbarer Bereich */
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+    .table-scroll thead th{
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+    }
+    .table-scroll td, .table-scroll th{
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar (statisch; aktiver Tab per .active) -->
+  <div class="nav">
+    <div class="navwrap">
+      <div style="font-weight:800; color:#fff;">Fahrstundenplaner</div>
+      <a href="/" class="">Kalender</a>
+      <a href="/students/" class="active">Fahrschüler</a>
+      <a href="/instructors/">Fahrlehrer</a>
+      <a href="/vehicles/">Fahrzeuge</a>
+      <a href="/types/">Fahrttypen</a>
+      <a href="/settings/">Einstellungen</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1>Fahrschüler</h1>
+
+    <!-- Fehlermeldung aus der View (z. B. "Name erforderlich") -->
+    {% if error %}<div style="color:#b91c1c;margin:8px 0">{{ error }}</div>{% endif %}
+
+    <!-- Formular: Create/Update kombiniert; 'edit' füllt Felder beim Bearbeiten -->
+    <div class="card" style="margin:12px 0;">
+      <form method="post" class="grid">
+        {% csrf_token %}
+        <!-- PK nur bei Edit -->
+        <input type="hidden" name="id" value="{{ edit.id|default:'' }}">
+
+        <!-- Stammdaten des Schülers -->
+        <input name="name"  placeholder="Name"    value="{{ edit.name|default:'' }}">
+        <input name="email" placeholder="E-Mail"  value="{{ edit.email|default:'' }}">
+        <input name="phone" placeholder="Telefon" value="{{ edit.phone|default:'' }}">
+        <textarea name="notes" placeholder="Notizen">{{ edit.notes|default:'' }}</textarea>
+
+        <!-- Aktionen: 'Neu' resetet das Formular; yesno liefert update/create -->
+        <div class="row" style="justify-content:flex-end; grid-column:1 / -1">
+          <a class="btn" href="{% url 'students_page' %}">Neu</a>
+          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">Speichern</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Liste der vorhandenen Schüler -->
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>E-Mail</th><th>Telefon</th><th style="width:210px">Aktion</th></tr>
+          </thead>
+          <tbody>
+          {% for s in items %}
+            <tr>
+              <td>{{ s.name }}</td>
+              <td>{{ s.email }}</td>
+              <td>{{ s.phone }}</td>
+              <td>
+                <div class="row">
+                  <!-- Edit lädt dieselbe Seite mit ?edit=<id> und füllt das Formular -->
+                  <a class="btn" href="?edit={{ s.id }}">Bearbeiten</a>
+                  <!-- Delete via POST; Confirm-Schutz im Browser -->
+                  <form method="post" onsubmit="return confirm('Diesen Fahrschüler löschen?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" value="{{ s.id }}">
+                    <button class="btn danger" name="action" value="delete">Löschen</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Noch keine Fahrschüler erfasst.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- === Schüler-Report (Analytik) ========================================== -->
+    <!-- Normalize und Chart.js laden (für sauberes Rendering & Diagramme) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+      /* Report-spezifisches Styling */
+      .report-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:14px 0}
+      .rp-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+      .rp-toolbar .group{display:flex;gap:8px;align-items:center}
+      .rp-toolbar select,.rp-toolbar input[type="date"],.rp-toolbar button{
+        height:38px;border:1px solid #d1d5db;border-radius:8px;background:#fff;padding:0 10px;cursor:pointer
+      }
+      .rp-toolbar .primary{background:#2563eb;color:#fff;border-color:#2563eb}
+      .rp-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}
+      .rp-kpi{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
+      .rp-kpi .h{font-size:12px;color:#6b7280;margin-bottom:4px}
+      .rp-kpi .v{font-size:20px;font-weight:800}
+      .rp-flex{display:flex;gap:14px;align-items:stretch;margin-top:14px}
+      .rp-left{flex:2 1 0}
+      .rp-right{flex:1 1 0;display:flex;flex-direction:column;gap:10px}
+      .rp-table{width:100%;border-collapse:collapse;font-size:14px}
+      .rp-table th,.rp-table td{border-bottom:1px solid #eee;padding:8px;text-align:left;white-space:nowrap}
+      .rp-type{display:flex;justify-content:space-between}
+      .muted{color:#6b7280}
+      .badge{padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px}
+      .sr-notes{white-space:pre-wrap}
+      @media (max-width: 900px){
+        .rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .rp-flex{flex-direction:column}
+      }
+      .rp-table-scroll{max-height:360px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:10px}
+      .rp-table thead th{position:sticky;top:0;background:#fff;z-index:1}
+      /* Druckansicht: nur Bericht ohne Navi/Toolbar */
+      @media print{nav,.nav,.rp-toolbar,.sr-notes-card{display:none!important}.report-card{border:0;box-shadow:none;margin:0;padding:0}body{background:#fff}}
+    </style>
+
+    <div class="report-card" id="student-report">
+      <!-- Filterleiste -->
+      <div class="rp-toolbar">
+        <div id="sr-filter-note" class="muted" style="margin-top:6px;"></div>
+
+        <div class="group">
+          <label>Schüler</label>
+          <select id="sr-student">
+            <option value="">-- Schüler wählen --</option>
+            {% for s in items %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="group">
+          <label>Zeitraum</label>
+          <select id="sr-range">
+            <option value="all">Alle</option>
+            <option value="last12">Letzte 12 Monate</option>
+            <option value="thisyear">Dieses Jahr</option>
+            <option value="custom">Benutzerdefiniert</option>
+          </select>
+          <!-- custom: wird per JS sichtbar -->
+          <input type="date" id="sr-from" style="display:none">
+          <input type="date" id="sr-to"   style="display:none">
+          <button class="primary" id="sr-run">Bericht anzeigen</button>
+        </div>
+
+        <div class="group" style="margin-left:auto">
+          <button id="sr-print">Als PDF exportieren</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="h">Gesamt-Minuten</div><div class="v" id="sr-mins">–</div></div>
+        <div class="rp-kpi"><div class="h">Fahrten gesamt</div><div class="v" id="sr-cnt">–</div></div>
+        <div class="rp-kpi"><div class="h">Ø Dauer/Termin</div><div class="v" id="sr-avg">–</div></div>
+        <div class="rp-kpi"><div class="h">Erste Stunde</div><div class="v" id="sr-first">–</div></div>
+        <div class="rp-kpi"><div class="h">Letzte Stunde</div><div class="v" id="sr-last">–</div></div>
+      </div>
+
+      <!-- Chart + rechte Spalten (Typen, Meta) -->
+      <div class="rp-flex">
+        <div class="rp-left report-card">
+          <div class="h" style="margin-bottom:8px">Minuten je Monat (gesamt)</div>
+          <div style="height:300px"><canvas id="sr-chart"></canvas></div>
+        </div>
+        <div class="rp-right">
+          <!-- Notiz-Hinweis für den aktuell gewählten Schüler (nur Anzeige; wird NICHT gedruckt) -->
+          <div class="report-card sr-notes-card" id="sr-notes-card" style="display:none">
+            <div class="h" style="margin-bottom:8px">Schülernotiz</div>
+            <div id="sr-notes" class="sr-notes muted"></div>
+          </div>
+          <div class="report-card">
+            <div class="h" style="margin-bottom:8px">Fahrttypen (Zeitraum)</div>
+            <div id="sr-types"></div>
+          </div>
+          <div class="report-card">
+            <div class="h" style="margin-bottom:8px">Fahrlehrer &amp; Fahrzeuge (Historie)</div>
+            <div id="sr-meta" class="muted"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabelle der Termine (gefiltert) -->
+      <div class="report-card">
+        <div class="h" style="margin-bottom:8px">Termine (Zeitraum)</div>
+        <div class="rp-table-scroll">
+          <table class="rp-table">
+            <thead>
+              <tr><th>Tag</th><th>Zeit</th><th>Fahrlehrer</th><th>Typ</th><th>Dauer</th><th>Fahrzeug</th></tr>
+            </thead>
+            <tbody id="sr-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    (async function(){
+      // ===== Hilfsfunktionen =====
+      const $ = s => document.querySelector(s);
+      const fmtFull = iso => iso ? new Date(iso).toLocaleString('de-DE',{dateStyle:'medium',timeStyle:'short'}) : '–';
+      const fmtHM   = d => new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+      const fmtDay  = d => new Intl.DateTimeFormat('de-DE',{weekday:'short',day:'2-digit',month:'2-digit'}).format(d);
+      const ymKey   = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; // YYYY-MM
+      const pad     = n => String(n).padStart(2,'0');
+
+      // Schüler-Stammdaten für UI (Notizen anzeigen, ohne DB anzufassen)
+      const STUDENTS = {
+        {% for s in items %}
+        "{{ s.id }}": { name: "{{ s.name|escapejs }}", notes: "{{ s.notes|default:''|escapejs }}" },
+        {% endfor %}
+      };
+
+      function paintStudentNotes(studentId){
+        const card = $('#sr-notes-card');
+        const box  = $('#sr-notes');
+        if (!card || !box) return;
+
+        const s = STUDENTS[String(studentId)];
+        const txt = (s?.notes || '').trim();
+        if (!studentId || !s || !txt){
+          card.style.display = 'none';
+          box.textContent = '';
+          return;
+        }
+        card.style.display = '';
+        box.textContent = txt;
+      }
+
+      // Globale Optionen/Einstellungen aus APIs (für Farben/Dauern/Labels)
+      let SETTINGS=null, OPTIONS=null, TYPES_BY_ID={};
+      async function loadOptions(){
+        if (!OPTIONS)  OPTIONS  = await fetch('/api/options/').then(r=>r.json());
+        if (!SETTINGS) SETTINGS = await fetch('/api/settings/').then(r=>r.json()).catch(()=>null);
+        SETTINGS ||= { defaultNewDurationMin:45 };
+        (OPTIONS.types||[]).forEach(t=>TYPES_BY_ID[t.id]=t);
+      }
+      await loadOptions();
+
+      // Dauer/Endzeit robust berechnen (Fallback: Typ-Default oder globaler Default)
+      function endDateOf(ev){
+        const st = new Date(ev.start);
+        if (ev.end) return new Date(ev.end);
+        const tId = ev.typeId ?? ev.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id;
+        const t   = TYPES_BY_ID[tId];
+        const mins = parseInt(t?.default_duration_min ?? SETTINGS.defaultNewDurationMin ?? 45, 10);
+        return new Date(st.getTime() + mins*60000);
+      }
+      function minutesOf(ev){
+        const st=new Date(ev.start), en=endDateOf(ev);
+        return Math.max(0, Math.round((en-st)/60000));
+      }
+
+      // PDF-Export: Report-Ansicht öffnen (statt "ganze Seite drucken")
+      $('#sr-print').onclick = ()=>{
+        const sid = $('#sr-student').value;
+        if (!sid){
+          alert('Bitte zuerst einen Schüler auswählen.');
+          return;
+        }
+        window.open(`/students/${sid}/report/`, '_blank', 'noopener');
+      };
+
+      // Notizen werden über STUDENTS{} + paintStudentNotes(studentId) gesteuert.
+
+      // ===== Filter-State =====
+      let RAW_EVENTS = [];   // komplette Historie des aktuell gewählten Schülers
+      let chart = null;
+
+      function setRangeInputsVisible(){
+        const mode = $('#sr-range').value;
+        const show = mode === 'custom';
+        $('#sr-from').style.display = show ? '' : 'none';
+        $('#sr-to').style.display   = show ? '' : 'none';
+      }
+
+      function getFilterRange(){
+        const mode = $('#sr-range').value;
+        const today = new Date(); today.setHours(23,59,59,999);
+
+        if (mode === 'all') return { from: null, to: null, label: 'Alle Termine' };
+
+        if (mode === 'last12'){
+          const to = today;
+          const from = new Date(to); from.setMonth(from.getMonth()-12); from.setHours(0,0,0,0);
+          return { from, to, label: 'Letzte 12 Monate' };
+        }
+
+        if (mode === 'thisyear'){
+          const y = today.getFullYear();
+          const from = new Date(y,0,1,0,0,0,0), to = today;
+          return { from, to, label: `Dieses Jahr (${y})` };
+        }
+
+        // custom
+        const f = $('#sr-from').value ? new Date($('#sr-from').value+'T00:00:00') : null;
+        const t = $('#sr-to').value   ? new Date($('#sr-to').value  +'T23:59:59') : null;
+        let lbl = 'Benutzerdefiniert';
+        if (f || t){
+          const pf = f ? `${pad(f.getDate())}.${pad(f.getMonth()+1)}.${f.getFullYear()}` : '–';
+          const pt = t ? `${pad(t.getDate())}.${pad(t.getMonth()+1)}.${t.getFullYear()}` : '–';
+          lbl = `Von ${pf} bis ${pt}`;
+        }
+        return { from: f, to: t, label: lbl };
+      }
+
+      // Filterung anhand Startzeit (wie im Backend-Overlap genügt hier Start zu prüfen)
+      function applyFilter(events){
+        const { from, to } = getFilterRange();
+        return events.filter(ev=>{
+          const st = new Date(ev.start);
+          if (from && st < from) return false;
+          if (to   && st > to)   return false;
+          return true;
+        });
+      }
+
+      // Hinweis-Text zum Filter (x von y Terminen)
+      function paintFilterNote(totalCount){
+        const { label } = getFilterRange();
+        const note = $('#sr-filter-note');
+        if (!note) return;
+        if ($('#sr-range').value === 'all'){
+          note.textContent = '';
+          return;
+        }
+        const span = applyFilter(RAW_EVENTS).length;
+        note.textContent = `${label} — ${span} von ${totalCount} Terminen`;
+      }
+
+      // Hauptlogik: Daten laden/filtern/anzeigen
+      async function run(){
+        const sid = $('#sr-student').value;
+
+        // Notiz-Block aktualisieren (auch wenn kein Report geladen wird)
+        paintStudentNotes();
+
+        // Reset, wenn kein Schüler gewählt
+        if (!sid){
+          RAW_EVENTS = [];
+          paintStudentNotes(null);
+          $('#sr-mins').textContent = '–';
+          $('#sr-cnt').textContent  = '–';
+          $('#sr-avg').textContent  = '–';
+          $('#sr-first').textContent= '–';
+          $('#sr-last').textContent = '–';
+          $('#sr-types').innerHTML  = '<span class="muted">Bitte Schüler wählen.</span>';
+          $('#sr-meta').innerHTML   = '';
+          $('#sr-rows').innerHTML   = `<tr><td colspan="6" class="muted">Bitte Schüler wählen.</td></tr>`;
+          $('#sr-filter-note').textContent = '';
+          if (chart) { chart.destroy(); chart = null; }
+          return;
+        }
+
+        // Notiz-Preview unterhalb (oberhalb der Fahrttypen-Liste)
+        paintStudentNotes(sid);
+
+        // 1) Gesamte Historie des Schülers laden
+        RAW_EVENTS = await fetch('/api/appointments/?'+new URLSearchParams({student: sid}).toString())
+                      .then(r=>r.json());
+
+        // 2) Optionalen Meta-Report des Backends holen (liefert z.B. nächste Stunde, Aggregationen)
+        let meta = null;
+        try {
+          const mres = await fetch(`/api/students/${sid}/report/`);
+          if (mres.ok) meta = await mres.json();
+        } catch(_){ /* ignore network/parse errors */ }
+
+        // Gesamthistorie sortieren (für „erste/letzte Stunde“)
+        const allSorted = [...RAW_EVENTS].sort((a,b)=> new Date(a.start)-new Date(b.start));
+        const firstAll  = allSorted[0] ? new Date(allSorted[0].start) : null;
+        const lastAll   = allSorted.length ? endDateOf(allSorted[allSorted.length-1]) : null;
+
+        // 3) Gefilterter View
+        const evs = applyFilter(RAW_EVENTS);
+        const sorted = [...evs].sort((a,b)=> new Date(a.start) - new Date(b.start));
+
+        // Aggregation
+        let totalMin = 0, totalCnt = 0;
+        const perType = {};      // Summe Minuten je Typ im gefilterten Zeitraum
+        const perMonthType = {}; // YYYY-MM -> { typeId: minuten }
+
+        for (const ev of sorted){
+          const st   = new Date(ev.start);
+          const mins = minutesOf(ev);
+          totalMin += mins;
+          totalCnt++;
+
+          const tId = ev.typeId ?? ev.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id;
+          perType[tId] = (perType[tId] || 0) + mins;
+
+          const key = ymKey(st);
+          perMonthType[key] ||= {};
+          perMonthType[key][tId] = (perMonthType[key][tId] || 0) + mins;
+        }
+
+        // KPIs setzen
+        $('#sr-mins').textContent = totalMin || 0;
+        $('#sr-cnt').textContent  = totalCnt || 0;
+        $('#sr-avg').textContent  = totalCnt ? Math.round(totalMin/totalCnt)+' Min' : '–';
+        $('#sr-first').textContent= firstAll ? fmtFull(firstAll.toISOString()) : '–';
+        $('#sr-last').textContent = lastAll  ? fmtFull(lastAll.toISOString())  : '–';
+
+        // Hinweis-Label (x von y)
+        paintFilterNote(allSorted.length);
+
+        // === Chart: Gestapelte Balken je Monat und Fahrttyp ===
+        const months = Object.keys(perMonthType).sort(); // ["2024-11","2024-12",...]
+        const labels = months.map(m=>{
+          const [y,mm] = m.split('-').map(Number);
+          const d = new Date(y, mm-1, 1);
+          return new Intl.DateTimeFormat('de-DE',{month:'short', year:'2-digit'}).format(d);
+        });
+
+        // Farbe (#RRGGBB) → rgba
+        const hexToRgba = (hex, alpha=0.9)=>{
+          const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');
+          if(!m) return `rgba(37,99,235,${alpha})`;
+          const r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16);
+          return `rgba(${r},${g},${b},${alpha})`;
+        };
+
+        // Alle konfigurierten Typen als Datasets (auch 0-Minuten sichtbar halten)
+        const typeList = (OPTIONS.types || []);
+        const datasets = typeList.map(t=>{
+          const arr = months.map(m => (perMonthType[m]?.[t.id] || 0));
+          return {
+            type: 'bar',
+            label: t.name,
+            data: arr,
+            backgroundColor: hexToRgba(t.color || '#2563eb', 0.9),
+            borderWidth: 0,
+            stack: 'mins'
+          };
+        });
+
+        // Zusatz: schwarze Linie mit Monatssummen
+        const monthTotals = months.map((m)=> Object.values(perMonthType[m]||{}).reduce((a,b)=>a+b,0));
+        datasets.push({
+          type: 'line',
+          label: 'Gesamt',
+          data: monthTotals,
+          borderColor: '#111',
+          borderWidth: 1,
+          tension: 0,
+          pointRadius: 0,
+          yAxisID: 'y',
+        });
+
+        // Chart instanziieren/erneuern
+        if (chart) chart.destroy();
+        chart = new Chart($('#sr-chart'), {
+          type: 'bar',
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { stacked: true },
+              y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Minuten' } }
+            },
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  title: (items)=> items?.[0]?.label || '',
+                  afterBody: (items)=>{
+                    const idx = items?.[0]?.dataIndex ?? -1;
+                    if (idx < 0) return;
+                    const sum = datasets.filter(ds=>ds.type==='bar').reduce((a,ds)=> a + (ds.data[idx] || 0), 0);
+                    return `Gesamt: ${sum} Min`;
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        // Fahrttypen-Zusammenfassung (gefiltert)
+        const totalForPct = (totalMin || 1);
+        $('#sr-types').innerHTML = (OPTIONS.types||[]).map(t=>{
+          const mins = perType[t.id] || 0;
+          const pct  = Math.round(mins*100/totalForPct);
+          return `<div class="rp-type">
+            <span><span class="badge" style="background:${t.color||'#eef2ff'};border-color:#ddd"></span> ${t.name}</span>
+            <span>${mins} Min · ${pct}%</span>
+          </div>`;
+        }).join('') || '<span class="muted">Keine Fahrttypen konfiguriert.</span>';
+
+        // Fahrlehrer/Fahrzeuge (aus Meta wenn vorhanden, sonst aus RAW_EVENTS gezählt)
+        function tally(list, key, labelFn){
+          const map = new Map();
+          for (const x of list){
+            const id = key(x);
+            if (!id) continue;
+            map.set(id, (map.get(id)||0) + 1);
+          }
+          return [...map.entries()].map(([id,count])=>({ id, count, label: labelFn(id) }));
+        }
+        let insts = meta?.instructors;
+        let vehs  = meta?.vehicles;
+        if (!insts){
+          insts = tally(RAW_EVENTS,
+            ev => ev.instructorId ?? ev.instructor_id ?? ev?.extendedProps?.instructorId,
+            id => (OPTIONS.instructors||[]).find(i=>String(i.id)===String(id))?.label || `#${id}`
+          ).sort((a,b)=>b.count-a.count);
+        }
+        if (!vehs){
+          vehs = tally(RAW_EVENTS,
+            ev => ev.vehicleId ?? ev.vehicle_id ?? ev?.extendedProps?.vehicleId,
+            id => (OPTIONS.vehicles||[]).find(v=>String(v.id)===String(id))?.label || `#${id}`
+          ).sort((a,b)=>b.count-a.count);
+        }
+        const instList = (insts||[]).map(i=>`${i.label||i.name} <span class="muted">(${i.count})</span>`).join('<br>') || '–';
+        const vehList  = (vehs||[]).map(v=>`${v.label} <span class="muted">(${v.count})</span>`).join('<br>') || '–';
+        const nextTxt  = meta?.total?.next ? `<br><br><strong>Nächste Stunde</strong><br>${fmtFull(meta.total.next)}` : '';
+        $('#sr-meta').innerHTML = `<div><strong>Fahrlehrer</strong><br>${instList}</div><br>
+                                  <div><strong>Fahrzeuge</strong><br>${vehList}</div>${nextTxt}`;
+
+        // Tabellendaten (gefiltert)
+        const rows = sorted.map(ev=>{
+          const st = new Date(ev.start), en = endDateOf(ev), mins = minutesOf(ev);
+          const typeId = ev.typeId ?? ev.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id;
+          const type   = (OPTIONS.types||[]).find(t=>String(t.id)===String(typeId))?.name || '';
+          const vehId  = ev.vehicleId ?? ev.vehicle_id ?? ev?.extendedProps?.vehicleId;
+          const veh    = (OPTIONS.vehicles||[]).find(v=>String(v.id)===String(vehId))?.label || '';
+          const instId = ev.instructorId ?? ev.instructor_id ?? ev?.extendedProps?.instructorId;
+          const inst   = (OPTIONS.instructors||[]).find(i=>String(i.id)===String(instId))?.label || '';
+          return `<tr>
+            <td>${fmtDay(st)}</td>
+            <td>${fmtHM(st)} – ${fmtHM(en)}</td>
+            <td>${inst}</td>
+            <td>${type}</td>
+            <td>${mins} Min</td>
+            <td>${veh}</td>
+          </tr>`;
+        }).join('');
+        $('#sr-rows').innerHTML = rows || `<tr><td colspan="6" class="muted">Keine Termine im Zeitraum.</td></tr>`;
+      }
+
+      // Notiz auch beim Wechsel der Auswahl sofort aktualisieren
+      $('#sr-student').addEventListener('change', paintStudentNotes);
+
+      // UI-Events
+      $('#sr-range').addEventListener('change', ()=>{
+        setRangeInputsVisible();
+        // Bei "custom" erst laden, wenn Dates gesetzt oder Run geklickt wird
+      });
+      $('#sr-from').addEventListener('change', ()=> $('#sr-run').click());
+      $('#sr-to').addEventListener('change',   ()=> $('#sr-run').click());
+      $('#sr-run').onclick = run;
+      $('#sr-student').addEventListener('change', run);
+
+      // Initiale UI-Zustände
+      setRangeInputsVisible();
+      $('#sr-range').value = 'all'; // Standard: alle
+    })();
+    </script>
+    <!-- === /Schüler-Report =================================================== -->
+  </div>
+</body>
+</html>

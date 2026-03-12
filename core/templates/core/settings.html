@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Einstellungen – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* Grundlayout */
+    :root{
+      --radius:12px;
+      --gap:12px;
+      --input-h:40px;
+      --brand:#2563eb;
+      --bg:#f7f7f8;
+      --card:#fff;
+      --line:#e5e7eb;
+      --text:#111827;
+      --muted:#6b7280;
+    }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;color:var(--text);background:var(--bg)}
+
+    /* Navbar */
+    .nav{background:#111827;color:#fff}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .navwrap{max-width:none;margin:0;padding:10px 14px;display:flex;gap:12px;align-items:center}
+    .nav a{color:#cbd5e1;text-decoration:none;padding:6px 10px;border-radius:8px}
+    .nav a:hover,.nav a.active{background:rgba(255,255,255,.12);color:#fff}
+
+    /* Container & Cards */
+    .wrap{max-width:none;margin:18px 0;padding:0 14px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+
+    /* 12-Spalten-Grid für perfekte Symmetrie */
+    .grid-12{display:grid;gap:var(--gap);grid-template-columns:repeat(12,minmax(0,1fr))}
+    .col-12{grid-column:span 12}
+    .col-6{grid-column:span 6}
+    .col-4{grid-column:span 4}
+    .col-3{grid-column:span 3}
+
+    @media (max-width: 900px){
+      .col-6,.col-4,.col-3{grid-column:span 12}
+    }
+
+    /* Felder */
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:#374151}
+    .ctrl{
+      height:var(--input-h);
+      border:1px solid #d1d5db;border-radius:8px;
+      padding:0 10px;background:#fff;width:100%;
+    }
+    select.ctrl{padding-right:34px;appearance:auto}
+    input[type="time"].ctrl{padding:0 8px}
+    input[type="file"].ctrl{padding:6px 10px;height:auto}
+
+    /* Checkbox-Zeilen einheitlich */
+    .checks{display:flex;flex-direction:column;gap:6px}
+    .check{display:flex;align-items:center;gap:8px}
+    .check input{width:18px;height:18px}
+
+    /* Buttons */
+    .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+    .btn{
+      height:var(--input-h);
+      padding:0 14px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer
+    }
+    .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn.danger{background:#dc2626;border-color:#dc2626;color:#fff}
+
+    /* Flash */
+    .flash{margin-top:12px;padding:10px;border-radius:8px}
+    .flash.ok{border:1px solid #10b981;background:#ecfdf5;color:#065f46}
+    .flash.err{border:1px solid #ef4444;background:#fef2f2;color:#991b1b}
+
+    /* Sektion: DB-Backup */
+    .hint{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="nav">
+    <div class="navwrap">
+      <div style="font-weight:800; color:#fff;">{{ s.company_name }}</div>
+      <a href="/">Kalender</a>
+      <a href="/students/">Fahrschüler</a>
+      <a href="/instructors/">Fahrlehrer</a>
+      <a href="/vehicles/">Fahrzeuge</a>
+      <a href="/types/">Fahrttypen</a>
+      <a href="/settings/" class="active">Einstellungen</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1>Einstellungen</h1>
+
+    <!-- Hauptformular -->
+    <form method="post" class="card">
+      {% csrf_token %}
+
+      <div class="grid-12">
+        <div class="field col-6">
+          <label>Firmenname</label>
+          <input class="ctrl" name="company_name" value="{{ s.company_name }}">
+        </div>
+
+        <div class="field col-3">
+          <label>Wochenstart</label>
+          <select class="ctrl" name="week_start">
+            <option value="0" {% if s.week_start == 0 %}selected{% endif %}>Sonntag</option>
+            <option value="1" {% if s.week_start == 1 %}selected{% endif %}>Montag</option>
+            <option value="2" {% if s.week_start == 2 %}selected{% endif %}>Dienstag</option>
+            <option value="3" {% if s.week_start == 3 %}selected{% endif %}>Mittwoch</option>
+            <option value="4" {% if s.week_start == 4 %}selected{% endif %}>Donnerstag</option>
+            <option value="5" {% if s.week_start == 5 %}selected{% endif %}>Freitag</option>
+            <option value="6" {% if s.week_start == 6 %}selected{% endif %}>Samstag</option>
+          </select>
+        </div>
+
+        <div class="checks col-3" style="padding-top:26px">
+          <label class="check">
+            <input type="checkbox" id="kw" name="show_week_numbers" {% if s.show_week_numbers %}checked{% endif %}>
+            <span>Kalenderwochen anzeigen</span>
+          </label>
+        </div>
+
+        <div class="field col-3">
+          <label>Beginn (Zeit)</label>
+          <input class="ctrl" type="time" name="slot_min_time" value="{{ s.slot_min_time|time:'H:i' }}">
+        </div>
+        <div class="field col-3">
+          <label>Ende (Zeit)</label>
+          <input class="ctrl" type="time" name="slot_max_time" value="{{ s.slot_max_time|time:'H:i' }}">
+        </div>
+
+        <div class="field col-3">
+          <label>Slot-Dauer (Minuten)</label>
+          <input class="ctrl" type="number" name="slot_duration_min" min="1" value="{{ s.slot_duration_min }}">
+        </div>
+        <div class="field col-3">
+          <label>Einrast-Dauer (Minuten)</label>
+          <input class="ctrl" type="number" name="snap_duration_min" min="1" value="{{ s.snap_duration_min }}">
+        </div>
+
+        <div class="field col-3">
+          <label>Standard-Terminlänge (Minuten)</label>
+          <input class="ctrl" type="number" name="default_new_duration_min" min="1" value="{{ s.default_new_duration_min }}">
+        </div>
+
+        <!-- Actions: volle Breite -->
+        <div class="col-12 actions">
+          <button class="btn primary" type="submit" name="action" value="save_settings">Speichern</button>
+        </div>
+
+        <!-- Flash-Meldungen -->
+        {% if flash_ok %}
+          <div class="col-12 flash ok">{{ flash_ok }}</div>
+        {% endif %}
+        {% if flash_err %}
+          <div class="col-12 flash err">{{ flash_err }}</div>
+        {% endif %}
+      </div>
+    </form>
+
+    <!-- DB-Backup (eigene Card, saubere Ausrichtung) -->
+    <div class="card" style="margin-top:16px;">
+      <h2 style="margin:0 0 10px 0;">Datenbank-Sicherung</h2>
+
+      {% if db_is_sqlite %}
+        <p class="hint" style="margin-top:0">Die Datenbank läuft auf <strong>SQLite</strong>. Du kannst hier sichern und wiederherstellen.</p>
+
+        <div class="grid-12" style="align-items:center">
+          <div class="col-6">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="download_sqlite">
+              <button class="btn" type="submit">Datenbank herunterladen</button>
+            </form>
+          </div>
+
+          <div class="col-6">
+            <form method="post" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restore_sqlite">
+              <input class="ctrl" type="file" name="dbfile" accept=".sqlite,.sqlite3,application/octet-stream" required>
+              <button class="btn danger" type="submit">Backup hochladen &amp; wiederherstellen</button>
+            </form>
+          </div>
+        </div>
+
+        <p class="hint" style="margin-top:8px">
+          Hinweis: Während der Wiederherstellung werden Verbindungen geschlossen. Danach bitte die Seite aktualisieren.
+        </p>
+      {% else %}
+        <p>Aktueller Datenbank-Typ: <code>{{ db_engine }}</code>. Direkte Datei-Sicherung ist nur bei SQLite verfügbar.</p>
+        <p class="hint">Für Postgres/MySQL bitte systemseitige Backups (z.&nbsp;B. <code>pg_dump</code>) verwenden.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

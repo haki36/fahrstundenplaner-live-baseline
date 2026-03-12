@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrzeuge – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root{
+      --bg:#f7f7f8; --card:#fff; --border:#e5e7eb; --muted:#6b7280;
+      --text:#111827; --link:#cbd5e1; --primary:#2563eb; --danger:#dc2626;
+      --radius:12px; --radius-sm:8px; --shadow:0 6px 18px rgba(0,0,0,.05);
+      --h:40px;      /* Einheitliche Feldhöhe */
+      --gap:12px;
+    }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit}
+
+    /* Navbar */
+    .nav{background:#111827;color:#fff}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .navwrap{max-width:none;margin:0;padding:10px 14px;display:flex;gap:12px;align-items:center}
+    .nav a{color:var(--link);text-decoration:none;padding:6px 10px;border-radius:6px}
+    .nav a:hover,.nav a.active{background:rgba(255,255,255,.12);color:#fff}
+    .brand{font-weight:800;color:#fff}
+
+    /* Page */
+    .wrap{max-width:none;margin:18px 0;padding:0 14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+
+    /* Form Layout */
+    .form-grid{
+      display:grid;gap:var(--gap);
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      align-items:end;
+    }
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:#374151}
+    .input, .select{
+      height:var(--h);
+      border:1px solid #d1d5db;border-radius:var(--radius-sm);
+      padding:0 10px;background:#fff;width:100%;
+    }
+    .select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#9ca3af 50%),linear-gradient(135deg,#9ca3af 50%,transparent 50%),linear-gradient(to right,#fff,#fff);
+            background-position:calc(100% - 18px) 50%,calc(100% - 12px) 50%,100% 0;background-size:6px 6px,6px 6px,2.5em 100%;background-repeat:no-repeat}
+    .actions{display:flex;gap:8px;justify-content:flex-end;grid-column:1 / -1;margin-top:4px}
+    .btn{height:var(--h);padding:0 14px;border-radius:var(--radius-sm);border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+
+    /* Table */
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #eee;vertical-align:middle}
+    th{text-align:left;font-weight:600;color:#374151}
+
+    .table-scroll{
+      max-height:320px;       /* ~6 Zeilen sichtbar */
+      overflow:auto;border:1px solid var(--border);border-radius:var(--radius);
+    }
+    .table-scroll thead th{position:sticky;top:0;background:#fff;z-index:1}
+
+    /* Messages */
+    .msg-error{color:#b91c1c;margin:8px 0}
+    .muted{color:var(--muted)}
+
+    /* Responsive */
+    @media (max-width:1000px){ .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+    @media (max-width:640px){
+      .navwrap{flex-wrap:wrap}
+      .form-grid{grid-template-columns:1fr}
+      .actions{justify-content:stretch}
+      .btn{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="nav">
+    <div class="navwrap">
+      <div class="brand">Fahrstundenplaner</div>
+      <a href="/">Kalender</a>
+      <a href="/students/">Fahrschüler</a>
+      <a href="/instructors/">Fahrlehrer</a>
+      <a href="/vehicles/" class="active">Fahrzeuge</a>
+      <a href="/types/">Fahrttypen</a>
+      <a href="/settings/">Einstellungen</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1 style="margin:10px 0 14px">Fahrzeuge</h1>
+
+    {% if error %}<div class="msg-error">{{ error }}</div>{% endif %}
+
+    <!-- Formular -->
+    <div class="card" style="margin:12px 0;">
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ edit.id|default:'' }}">
+
+        <div class="field">
+          <label for="label">Bezeichnung</label>
+          <input id="label" name="label" class="input" placeholder="z. B. BMW 1er" value="{{ edit.label|default:'' }}">
+        </div>
+
+        <div class="field">
+          <label for="plate">Kennzeichen</label>
+          <input id="plate" name="plate" class="input" placeholder="z. B. B-SF 1097" value="{{ edit.plate|default:'' }}">
+        </div>
+
+        <div class="field">
+          <label for="transmission">Getriebe</label>
+          <select id="transmission" name="transmission" class="select">
+            {% with t=edit.transmission|default:"Schalter" %}
+              <option value="Schalter"  {% if t == "Schalter" %}selected{% endif %}>Schalter</option>
+              <option value="Automatik" {% if t == "Automatik" %}selected{% endif %}>Automatik</option>
+            {% endwith %}
+          </select>
+        </div>
+
+        <div class="actions">
+          <a class="btn" href="{% url 'vehicles_page' %}">Neu</a>
+          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">Speichern</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Liste -->
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Bezeichnung</th>
+              <th>Kennzeichen</th>
+              <th>Getriebe</th>
+              <th style="width:220px">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for v in items %}
+            <tr>
+              <td>{{ v.label }}</td>
+              <td>{{ v.plate }}</td>
+              <td>{{ v.transmission }}</td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <a class="btn" href="?edit={{ v.id }}">Bearbeiten</a>
+                  <form method="post" onsubmit="return confirm('Dieses Fahrzeug löschen?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" value="{{ v.id }}">
+                    <button class="btn danger" name="action" value="delete">Löschen</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="muted">Noch keine Fahrzeuge erfasst.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="muted" style="margin-top:12px">
+      Hinweis: Fahrzeuge, die bereits in Terminen verwendet werden, können aufgrund von Datenkonsistenz (Schutz) nicht gelöscht werden.
+    </p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrttypen – Fahrstundenplaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root{
+      --bg:#f7f7f8; --card:#fff; --border:#e5e7eb; --muted:#6b7280;
+      --text:#111827; --link:#cbd5e1; --primary:#2563eb; --danger:#dc2626;
+      --radius:12px; --radius-sm:8px; --shadow:0 6px 18px rgba(0,0,0,.05);
+      --h:40px;      /* Einheitliche Feldhöhe */
+      --gap:12px;
+    }
+    /* Base */
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
+    a{color:inherit}
+
+    /* Navbar */
+    .nav{background:#111827;color:#fff}
+    /* Desktop: volle Breite auf großen Screens (kein max-width Limit) */
+    .navwrap{max-width:none;margin:0;padding:10px 14px;display:flex;gap:12px;align-items:center}
+    .nav a{color:var(--link);text-decoration:none;padding:6px 10px;border-radius:6px}
+    .nav a:hover,.nav a.active{background:rgba(255,255,255,.12);color:#fff}
+    .brand{font-weight:800;color:#fff}
+
+    /* Page */
+    .wrap{max-width:none;margin:18px 0;padding:0 14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+
+    /* Form Layout */
+    .form-grid{
+      display:grid;gap:var(--gap);
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      align-items:end;
+    }
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:#374151}
+    .input, .select{
+      height:var(--h);
+      border:1px solid #d1d5db;border-radius:var(--radius-sm);
+      padding:0 10px;background:#fff;width:100%;
+    }
+    .input[type="number"]{appearance:textfield}
+    .input[type="color"]{
+      padding:0;width:56px;height:var(--h);border-radius:var(--radius-sm);
+    }
+    .color-row{display:flex;gap:10px;align-items:center}
+    .actions{display:flex;gap:8px;justify-content:flex-end;grid-column:1 / -1;margin-top:4px}
+
+    .btn{
+      height:var(--h);padding:0 14px;border-radius:var(--radius-sm);
+      border:1px solid #d1d5db;background:#fff;cursor:pointer
+    }
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+
+    /* Table */
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #eee;vertical-align:middle}
+    th{text-align:left;font-weight:600;color:#374151}
+    .colorbox{width:24px;height:24px;border-radius:6px;border:1px solid #ddd;display:inline-block;vertical-align:middle;margin-right:8px}
+
+    .table-scroll{
+      max-height:320px;       /* ~6 Zeilen sichtbar */
+      overflow:auto;border:1px solid var(--border);border-radius:var(--radius);
+    }
+    .table-scroll thead th{position:sticky;top:0;background:#fff;z-index:1}
+
+    /* Messages */
+    .msg-error{color:#b91c1c;margin:8px 0}
+    .muted{color:var(--muted)}
+
+    /* Responsive */
+    @media (max-width:1000px){ .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+    @media (max-width:640px){
+      .navwrap{flex-wrap:wrap}
+      .form-grid{grid-template-columns:1fr}
+      .actions{justify-content:stretch}
+      .btn{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="nav">
+    <div class="navwrap">
+      <div class="brand">Fahrstundenplaner</div>
+      <a href="/">Kalender</a>
+      <a href="/students/">Fahrschüler</a>
+      <a href="/instructors/">Fahrlehrer</a>
+      <a href="/vehicles/">Fahrzeuge</a>
+      <a href="/types/" class="active">Fahrttypen</a>
+      <a href="/settings/">Einstellungen</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1 style="margin:10px 0 14px">Fahrttypen</h1>
+
+    {% if error %}<div class="msg-error">{{ error }}</div>{% endif %}
+
+    <!-- Formular -->
+    <div class="card" style="margin:12px 0;">
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="id" value="{{ edit.id|default:'' }}">
+
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" class="input" placeholder="z. B. Übungsfahrt B"
+                 value="{{ edit.name|default:'' }}">
+        </div>
+
+        <div class="field">
+          <label for="duration">Standarddauer (Minuten)</label>
+          <input id="duration" name="duration" class="input" type="number" min="1"
+                 value="{{ edit.default_duration_min|default:'45' }}">
+        </div>
+
+        <div class="field" style="grid-column:span 1;">
+          <label>Farbe</label>
+          <div class="color-row">
+            <input id="colorPicker" name="color" class="input" type="color"
+                   value="{{ edit.color|default:'#3b82f6' }}">
+            <input id="colorHex" class="input" type="text" placeholder="#RRGGBB"
+                   value="{{ edit.color|default:'#3b82f6' }}" pattern="#[0-9a-fA-F]{6}">
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="btn" href="{% url 'types_page' %}">Neu</a>
+          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">Speichern</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Liste -->
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Farbe</th>
+              <th>Name</th>
+              <th>Standarddauer</th>
+              <th style="width:220px">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for t in items %}
+            <tr>
+              <td><span class="colorbox" style="background:{{ t.color }}"></span>{{ t.color }}</td>
+              <td>{{ t.name }}</td>
+              <td>{{ t.default_duration_min }}&nbsp;Min.</td>
+              <td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <a class="btn" href="?edit={{ t.id }}">Bearbeiten</a>
+                  <form method="post" onsubmit="return confirm('Diesen Fahrttyp löschen?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" value="{{ t.id }}">
+                    <button class="btn danger" name="action" value="delete">Löschen</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="muted">Noch keine Fahrttypen erfasst.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Picker ↔ Hex Sync -->
+  <script>
+    (function(){
+      const picker = document.getElementById('colorPicker');
+      const hex = document.getElementById('colorHex');
+      if(!picker || !hex) return;
+
+      // Initial sauber normieren (#RRGGBB)
+      if(!/^#[0-9a-fA-F]{6}$/.test(hex.value)) hex.value = picker.value;
+
+      // Picker → Hex
+      picker.addEventListener('input', () => { hex.value = picker.value; });
+
+      // Hex → Picker (nur bei gültigem Wert)
+      hex.addEventListener('input', () => {
+        if(/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="de" class="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Termin</title>
+
+  <!-- Tailwind via CDN (inkl. forms & container-queries Plugins) -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <!-- Google Icons + Inter-Font -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
+
+  <!-- Material Symbols: leicht fetter -->
+  <style>
+    .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}
+  </style>
+
+  <!-- Tailwind-Theme minimal: Primärfarbe + Hintergrund + Font -->
+  <script>
+    tailwind.config = {
+      theme:{ extend:{ colors:{ primary:'#000000', bg:'#F2F3F5' }, fontFamily:{ display:['Inter','system-ui','sans-serif'] } } }
+    }
+  </script>
+</head>
+<body class="bg-bg font-display text-slate-900">
+  <!-- ===== Topbar ===== -->
+  <div class="sticky top-0 z-10 bg-bg/95 backdrop-blur px-4 py-3 flex items-center gap-2">
+    <!-- Zurück zur vorherigen Seite -->
+    <a href="javascript:history.back()" class="p-2 -ml-2">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+    <!-- Titel (wird per JS mit Schülername überschrieben) -->
+    <h1 id="title" class="text-lg font-bold">Termin</h1>
+  </div>
+
+  <div class="px-4 py-3 space-y-4">
+    <!-- ===== Zeit & Schüler ===== -->
+    <div class="bg-white rounded-2xl shadow-sm p-4">
+      <div class="flex items-center gap-3">
+        <!-- Fahrttyp-Badge (Name + getönte Farbe) -->
+        <div id="typeBadge" class="px-2 py-1 rounded-md text-xs font-semibold"></div>
+        <!-- Zeitfenster (Datum + von–bis) -->
+        <div id="time" class="text-base font-semibold"></div>
+      </div>
+      <!-- Schülername groß -->
+      <div id="student" class="mt-2 text-lg font-bold"></div>
+    </div>
+
+    <!-- ===== Meta-Infos ===== -->
+    <div class="bg-white rounded-2xl shadow-sm p-4 divide-y">
+      <!-- Fahrlehrer -->
+      <div class="py-2 flex items-center gap-3">
+        <span class="material-symbols-outlined text-slate-500">person</span>
+        <div class="flex-1">
+          <div class="text-xs text-slate-500">Fahrlehrer</div>
+          <div id="inst" class="font-medium"></div>
+        </div>
+      </div>
+
+      <!-- Fahrzeug -->
+      <div class="py-2 flex items-center gap-3">
+        <span class="material-symbols-outlined text-slate-500">directions_car</span>
+        <div class="flex-1">
+          <div class="text-xs text-slate-500">Fahrzeug</div>
+          <div id="vehicle" class="font-medium"></div>
+        </div>
+      </div>
+
+      <!-- Dauer -->
+      <div class="py-2 flex items-center gap-3">
+        <span class="material-symbols-outlined text-slate-500">timer</span>
+        <div class="flex-1">
+          <div class="text-xs text-slate-500">Dauer</div>
+          <div id="duration" class="font-medium"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Telefon ===== -->
+    <div class="bg-white rounded-2xl shadow-sm p-4">
+      <div class="text-xs text-slate-500 mb-1">Telefon</div>
+      <a id="studentPhone" class="text-sm font-semibold text-primary" href="#">—</a>
+    </div>
+
+    <!-- ===== Noch geplant (ab diesem Termin) ===== -->
+    <div class="bg-white rounded-2xl shadow-sm p-4">
+      <div class="text-xs text-slate-500 mb-1">Noch geplant</div>
+      <div id="remainingPlanned" class="text-sm font-semibold">—</div>
+      <div id="remainingPlannedHint" class="text-xs text-slate-500 mt-1 hidden"></div>
+    </div>
+
+    <!-- ===== Notizen ===== -->
+    <div class="bg-white rounded-2xl shadow-sm p-4">
+      <div class="text-xs text-slate-500 mb-1">Notizen</div>
+      <div id="notes" class="whitespace-pre-wrap text-sm text-slate-800">–</div>
+    </div>
+
+    <!-- (Optional) Aktionen: vorerst auskommentiert – bei Bedarf reaktivieren
+    <div class="grid grid-cols-2 gap-3 pb-24">
+      <a id="editBtn" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white py-3 font-semibold">
+        <span class="material-symbols-outlined mr-2">edit</span> Bearbeiten
+      </a>
+      <button id="deleteBtn" class="inline-flex items-center justify-center rounded-xl border border-red-600 bg-red-600 text-white py-3 font-semibold">
+        <span class="material-symbols-outlined mr-2">delete</span> Löschen
+      </button>
+    </div>
+    -->
+  </div>
+
+  <!-- ===== Bottom-Navigation ===== -->
+  <nav class="fixed bottom-0 left-0 right-0 border-t bg-white">
+    <div class="mx-auto max-w-[640px] px-6 py-2 grid grid-cols-3 text-center text-slate-500">
+      <a class="flex flex-col items-center gap-1" href="{% url 'm_month' %}">
+        <span class="material-symbols-outlined">calendar_month</span>
+        <span class="text-xs">Monat</span>
+      </a>
+      <a class="flex flex-col items-center gap-1" href="{% url 'm_day' %}">
+        <span class="material-symbols-outlined">calendar_view_day</span>
+        <span class="text-xs">Tag</span>
+      </a>
+      <!-- Ausgeblendeter Tab (Schüler) – später ggf. aktivieren
+      <a class="flex flex-col items-center gap-1" href="{% url 'students_page' %}">
+        <span class="material-symbols-outlined">group</span>
+        <span class="text-xs">Schüler</span>
+      </a>
+      -->
+      <form method="post" action="{% url 'logout' %}"
+            onsubmit="return confirm('Möchtest du dich abmelden?');"
+            class="flex flex-col items-center gap-1">
+        {% csrf_token %}
+        <button type="submit" 
+                class="flex flex-col items-center gap-1 text-slate-500 bg-transparent border-0 p-0 focus:outline-none">
+          <span class="material-symbols-outlined">logout</span>
+          <span class="text-xs font-medium">Abmelden</span>
+        </button>
+      </form>
+
+    </div>
+  </nav>
+
+  <!-- ===== Detail-Logik (Client) ===== -->
+  <script>
+  (function(){
+    // 1) Termin-ID finden:
+    //    a) aus der URL /m/a/<id>/
+    //    b) Fallback: per Template-Variable {{ appt_id }}
+    const APPT_ID = (() => {
+      const m = location.pathname.match(/\/m\/a\/(\d+)\/?$/);
+      if (m) return parseInt(m[1], 10);
+      const v = '{{ appt_id|default:"" }}';
+      return /^\d+$/.test(v) ? parseInt(v,10) : 0;
+    })();
+
+    if (!APPT_ID) {
+      console.warn("APPT_ID ist 0 – prüfe Route /m/a/<id>/ oder Template-Kontext.");
+    }
+
+    // 2) API-URL über reverse + replace robust bauen
+    const apiUrl = "{% url 'appointment_detail_api' pk=12345 %}".replace("12345", String(APPT_ID));
+
+    // Kleine Helpers für DOM/Formatierung
+    const $ = s => document.querySelector(s);
+    const safe = (v, fb='–') => (v===null || v===undefined || v==='') ? fb : v;
+    const fmtHM   = d => new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+    const fmtDate = d => new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+
+    // Minuten -> "Xh Ym" (oder "N Min")
+    function fmtDur(min){
+      const m = Math.max(0, parseInt(min || 0, 10));
+      const h = Math.floor(m / 60);
+      const r = m % 60;
+      if (h <= 0) return `${r} Min`;
+      if (r <= 0) return `${h}h`;
+      return `${h}h ${r} Min`;
+    }
+
+    // Farbe (#RRGGBB) → leichte Tönung als RGBA
+    function hexToTint(hex,a){
+      const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');
+      if(!m) return `rgba(49,113,255,${a})`;
+      const r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // Erforderliche Elemente absichern
+    function req(id){ const el=document.getElementById(id); if(!el) throw new Error(`#${id} fehlt`); return el; }
+
+    // Daten laden und ins UI schreiben
+    async function load(){
+      try{
+        if(!APPT_ID) throw new Error("Termin-ID konnte nicht ermittelt werden.");
+        console.debug("Lade Termin", APPT_ID, "via", apiUrl);
+
+        const res = await fetch(apiUrl, {credentials:'same-origin'});
+        if(!res.ok) throw new Error(`API-Fehler ${res.status}`);
+        const a = await res.json();
+
+        const st = a.start ? new Date(a.start) : null;
+        const en = a.end   ? new Date(a.end)   : null;
+
+        // Header & Zeitfenster
+        req('title').textContent = safe(a.student?.name, 'Termin');
+        req('time').textContent  = (st&&en) ? `${fmtDate(st)} · ${fmtHM(st)} – ${fmtHM(en)}`
+                                            : (st ? fmtDate(st) : '–');
+
+        // Fahrttyp-Badge (Text + Farbe)
+        const color = a.type?.color || '#3171FF';
+        const badge = req('typeBadge');
+        badge.textContent = safe(a.type?.name, 'Fahrttyp');
+        badge.style.color = color;
+        badge.style.background = hexToTint(color, .18);
+
+        // Meta-Felder
+        req('student').textContent  = safe(a.student?.name);
+        req('inst').textContent     = safe(a.instructor?.name);
+        req('vehicle').textContent  = safe(a.vehicle?.label);
+
+        // Dauer in Minuten (fallback, falls API minutes fehlt)
+        const minutes = Number.isFinite(a.minutes)
+          ? a.minutes
+          : (st&&en) ? Math.max(0, Math.round((en-st)/60000)) : null;
+        req('duration').textContent = minutes !== null ? `${minutes} Min` : '–';
+
+        // Telefon
+        const tel = (a.student && a.student.phone) ? a.student.phone : "";
+        const telA = document.querySelector('#studentPhone');
+        if (tel) {
+          telA.textContent = tel;
+          telA.href = 'tel:' + tel.replace(/\s+/g,'');
+        } else {
+          telA.textContent = '—';
+          telA.removeAttribute('href');
+        }
+
+        // Noch geplante Fahrzeit ab diesem Termin
+        const rem = Number.isFinite(a.student_remaining_planned_minutes)
+          ? a.student_remaining_planned_minutes
+          : null;
+
+        const remEl = document.getElementById('remainingPlanned');
+        const remHint = document.getElementById('remainingPlannedHint');
+        if (remEl) {
+          if (rem !== null) {
+            remEl.textContent = fmtDur(rem);
+            if (remHint) {
+              remHint.textContent = `Ab diesem Termin: ${rem} Min noch`;
+              remHint.classList.remove('hidden');
+            }
+          } else {
+            remEl.textContent = '—';
+            if (remHint) remHint.classList.add('hidden');
+          }
+        }
+
+        // Notizen
+        req('notes').textContent = safe(a.notes);
+
+      } catch(err){
+        // Fehler sichtbar machen, aber Seite nutzbar lassen
+        console.error(err);
+        const box=document.createElement('div');
+        box.className="mx-4 my-3 p-3 rounded-xl bg-red-50 text-red-700 text-sm";
+        box.textContent=`Fehler beim Laden: ${err.message}`;
+        document.body.insertBefore(box, document.body.firstChild);
+        const h=document.getElementById('title'); if(h) h.textContent='Termin';
+      }
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', load);
+  })();
+  </script>
+</body>
+</html>

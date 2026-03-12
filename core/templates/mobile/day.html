@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="de" class="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tag – Fahrstunden</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <!-- Fonts & Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+
+  <script>
+    // Detail-Link-Basis
+    const DETAIL_URL = "{% url 'm_details' pk=999999 %}".replace("999999", "");
+
+    // Datum aus ?d=YYYY-MM-DD, sonst heute (lokal)
+    const params = new URLSearchParams(location.search);
+    const qd = params.get('d');
+    let cur = qd ? new Date(qd + 'T00:00:00') : new Date();
+    cur.setHours(0,0,0,0);
+
+    // Tailwind Theme
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { primary: '#3171FF', bg: '#F2F3F5' },
+          fontFamily: { display: ['Inter','system-ui','sans-serif'] }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}
+
+    :root { --bottom-nav-h: 64px; }
+    .safe-bottom { padding-bottom: var(--bottom-nav-h); }
+    @supports (padding: max(0px)) {
+      .safe-bottom { padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom)); }
+    }
+
+    /* Wochenraster (Landscape) – nüchtern, ohne Spaltenhintergrund */
+    #weekGrid { align-items: start; } /* wichtig, damit Spalten am Top starten */
+    .wday-col { display:flex; flex-direction:column; min-width:0; }
+    .wday-head { display:flex; flex-direction:column; align-items:center; gap:6px; margin-bottom:8px }
+    .wday-body { display:flex; flex-direction:column; gap:8px; }
+
+    .wcard { border:1px solid #e5e7eb; border-radius:12px; padding:8px; background:#fff; display:flex; flex-direction:column; gap:4px; }
+    .wtime { font-size:.8rem; font-weight:700; opacity:.85; }
+    .wtitle{
+      font-weight:700;
+      line-height:1.15;
+      /* NEU: */
+      overflow-wrap:anywhere;   /* bricht lange Namen/Wörter */
+      word-break:break-word;
+      white-space:normal;
+    }
+    .wtype { font-size:.8rem; opacity:.9; display:flex; align-items:center; gap:6px; }
+    .dot { width:8px; height:8px; border-radius:999px; display:inline-block; }
+  </style>
+</head>
+<body class="bg-bg font-display text-slate-900">
+  <!-- Header -->
+  <div class="px-4 pt-4">
+    <div class="flex items-center gap-2 text-2xl font-bold">
+      <a class="size-12 flex items-center justify-between" href="{% url 'm_month' %}">
+        <span class="material-symbols-outlined text-slate-800">calendar_month</span>
+      </a>
+      <h1 id="monthLbl">Monat</h1>
+      <div class="ml-auto flex gap-2">
+        <button id="prev" class="p-2"><span class="material-symbols-outlined">chevron_left</span></button>
+        <button id="next" class="p-2"><span class="material-symbols-outlined">chevron_right</span></button>
+      </div>
+    </div>
+
+    <!-- Wochentags-Leiste (nur Portrait sichtbar) -->
+    <div id="weekdayRow" class="mt-4 grid grid-cols-7 gap-2"></div>
+
+    <h2 class="mt-4 text-xl font-bold" id="todayLbl">Heute</h2>
+  </div>
+
+  <!-- Tagesliste (Portrait) -->
+  <div id="list" class="px-4 mt-4 flex flex-col gap-3 safe-bottom"></div>
+
+  <!-- Wochenraster (Landscape) -->
+
+  <!-- ALT mit 7-Tages/Woche
+  <div id="weekGrid" class="px-2 mt-3 grid grid-cols-7 gap-2 safe-bottom hidden"></div>
+   -->
+
+  <!-- NEU (Sonntag deaktiviert -> nur 6 Spalten) -->
+  <div id="weekGrid" class="px-2 mt-3 grid grid-cols-6 gap-2 safe-bottom hidden"></div>
+
+
+  <!-- Bottom-Navigation -->
+  <nav class="fixed bottom-0 left-0 right-0 border-t bg-white" style="padding-bottom: env(safe-area-inset-bottom);">
+    <div class="mx-auto max-w-[640px] px-6 py-2 grid grid-cols-3 text-center text-slate-500">
+      <a class="flex flex-col items-center gap-1" href="{% url 'm_month' %}">
+        <span class="material-symbols-outlined">calendar_month</span>
+        <span class="text-xs font-medium">Monat</span>
+      </a>
+      <a class="flex flex-col items-center gap-1 text-primary" href="{% url 'm_day' %}">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">calendar_view_day</span>
+        <span class="text-xs font-semibold">Tag</span>
+      </a>
+      <form method="post" action="{% url 'logout' %}"
+            onsubmit="return confirm('Möchtest du dich wirklich abmelden?');"
+            class="flex flex-col items-center gap-1">
+        {% csrf_token %}
+        <button type="submit"
+                class="flex flex-col items-center gap-1 text-slate-500 bg-transparent border-0 p-0 focus:outline-none">
+          <span class="material-symbols-outlined">logout</span>
+          <span class="text-xs font-medium">Abmelden</span>
+        </button>
+      </form>
+    </div>
+  </nav>
+
+<script>
+  // Nur-Meine-API (vom Template gesteuert)
+  const BASE_API = "{% if only_my %}/api/my/appointments/{% else %}/api/appointments/{% endif %}";
+  const INSTR_ID = "{% if only_my %}{{ request.user.id }}{% else %}null{% endif %}";
+
+(function(){
+  const $ = s => document.querySelector(s);
+  const pad = n => String(n).padStart(2,'0');
+  const fmtHM   = d => new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+  const fmtLong = d => new Intl.DateTimeFormat('de-DE',{weekday:'long', day:'numeric', month:'long'}).format(d);
+  const fmtMonth= d => new Intl.DateTimeFormat('de-DE',{month:'long', year:'numeric'}).format(d);
+  const localKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  const fmtDur = (min) => {
+    const m = Math.round(min);
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m/60);
+    const r = m % 60;
+    return r ? `${h}h ${r}min` : `${h}h`;
+  };
+
+  function startOfWeek(d){
+    const x = new Date(d);
+    const k = (x.getDay()+6)%7; // Mo=0
+    x.setDate(x.getDate()-k);
+    x.setHours(0,0,0,0);
+    return x;
+  }
+  function endOfWeek(d){
+    const s = startOfWeek(d);
+    const e = new Date(s);
+    e.setDate(s.getDate()+6);
+    e.setHours(23,59,59,999);
+    return e;
+  }
+  function hexToTint(hex,a){
+    const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');
+    if(!m) return `rgba(49,113,255,${a})`;
+    const r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // Portrait: obere Wochenleiste
+  function paintWeekRow(show){
+    const row = $('#weekdayRow');
+    row.innerHTML = '';
+    row.style.display = show ? 'grid' : 'none';
+    if (!show) return;
+
+    const start = startOfWeek(cur);
+    const names = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+    for(let i=0;i<7;i++){
+      const d = new Date(start); d.setDate(start.getDate()+i);
+      const active = d.toDateString()===cur.toDateString();
+      const btn = document.createElement('button');
+      btn.className = `flex flex-col items-center py-2 ${active?'text-white':'text-slate-700'}`;
+      btn.innerHTML = `
+        <div class="text-sm ${active?'':'text-slate-500'}">${names[i]}</div>
+        <div class="mt-1 rounded-full size-10 ${active?'bg-primary text-white':'bg-white text-slate-900'} flex items-center justify-center text-base font-semibold">
+          ${pad(d.getDate())}
+        </div>`;
+      btn.onclick = () => { cur = d; applyLayout(); };
+      row.appendChild(btn);
+    }
+  }
+
+  // Portrait: Tagesliste
+  async function loadDay(){
+    $('#monthLbl').textContent = fmtMonth(cur);
+    $('#todayLbl').textContent = `Heute, ${fmtLong(cur)}`;
+    paintWeekRow(true);
+
+    const dayStart = new Date(cur); dayStart.setHours(0,0,0,0);
+    const dayEnd   = new Date(cur); dayEnd.setHours(23,59,59,999);
+
+    const OPTIONS = await fetch('/api/options/').then(r=>r.json());
+    const typesById = {}; (OPTIONS.types||[]).forEach(t=>typesById[t.id]=t);
+
+    const qs = new URLSearchParams({ start: dayStart.toISOString(), end: dayEnd.toISOString() });
+    const events = await fetch(BASE_API + "?" + qs.toString()).then(r => r.json());
+
+    const list = $('#list'); list.innerHTML='';
+    if (!events.length){
+      list.innerHTML = `<div class="text-sm text-slate-500">Keine Termine.</div>`;
+      return;
+    }
+
+    for(const ev of events.sort((a,b)=> new Date(a.start)-new Date(b.start))){
+      const st = new Date(ev.start);
+      const en = ev.end ? new Date(ev.end) : new Date(st.getTime() + 45*60000);
+      // (Portrait) Keine "Frei"-Blöcke
+      const tId = ev.typeId ?? ev.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id;
+      const t   = typesById[tId] || {};
+      const color = (t.color || '#3b82f6');
+
+      const el = document.createElement('a');
+      el.href = "{% url 'm_details' pk=0 %}".replace("/0/", `/${ev.id||''}/`);
+      el.className = "block bg-white rounded-2xl shadow-sm p-4";
+      el.innerHTML = `
+        <div class="flex items-center gap-4">
+          <div class="h-16 w-16 rounded-2xl flex items-center justify-center" style="background:${hexToTint(color,0.15)}">
+            <span class="material-symbols-outlined text-3xl" style="color:${color}">directions_car</span>
+          </div>
+          <div class="flex-1">
+            <div class="text-2xl font-extrabold">${fmtHM(st)} - ${fmtHM(en)}</div>
+            <div class="mt-1 text-lg font-semibold">${ev.title || (ev.studentName||'')}</div>
+            <div class="text-slate-500 flex items-center gap-2">
+              <span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:${t.color || ev?.extendedProps?.typeColor || '#cbd5e1'}"></span>
+              <span>Fahrttyp: ${t.name || ev?.extendedProps?.typeName || '–'}</span>
+            </div>
+          </div>
+        </div>`;
+      list.appendChild(el);
+    }
+  }
+
+  // Landscape: Wochenraster (explizite wday-body!)
+  async function renderWeek(){
+    const s = startOfWeek(cur);
+    const e = endOfWeek(cur);
+    $('#monthLbl').textContent = fmtMonth(cur);
+    const fmtShort = d => new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit'}).format(d);
+    $('#todayLbl').textContent = `Woche ${fmtShort(s)} – ${fmtShort(e)}`;
+    paintWeekRow(false);
+
+    const OPTIONS = await fetch('/api/options/').then(r=>r.json());
+    const typesById = {}; (OPTIONS.types||[]).forEach(t=>typesById[t.id]=t);
+
+    const qs = new URLSearchParams({ start: s.toISOString(), end: e.toISOString() });
+    const events = await fetch(BASE_API + "?" + qs.toString()).then(r=>r.json());
+
+    // Echte Frei/Urlaub-Slots (Unavailabilities) – nur für eingeloggten Fahrlehrer, wenn only_my aktiv ist
+    const bqs = new URLSearchParams({ start: s.toISOString(), end: e.toISOString() });
+    if (INSTR_ID) bqs.set('instructor', INSTR_ID);
+    const blocks = await fetch("/api/unavailabilities/?" + bqs.toString()).then(r=>r.json());
+
+
+    // Buckets pro Lokal-Tag
+    const bucket = {};
+    // ALT: 7 Tage (Mo–So)
+    // for (let i=0;i<7;i++){
+
+    // NEU: 6 Tage (Mo–Sa) – Sonntag ausgelassen
+    for (let i=0;i<6;i++){
+      const d = new Date(s); d.setDate(s.getDate()+i);
+      bucket[localKey(d)] = [];
+    }
+    for (const ev of events){
+      const d = new Date(ev.start);
+      const key = localKey(d);
+      if (bucket[key]) bucket[key].push(ev);
+    }
+
+    // Blocks ebenfalls in Bucket einsortieren (taggen als kind='block')
+    for (const blk of (blocks||[])){
+      // blk.start/blk.end sind ISO-Strings (lokalisiert vom Backend)
+      const d = new Date(blk.start);
+      const key = localKey(d);
+      if (bucket[key]) {
+        // Markiere eindeutig als Block, damit Rendering anders ist
+        if (!blk.extendedProps) blk.extendedProps = {};
+        blk.extendedProps.kind = blk.extendedProps.kind || "block";
+        bucket[key].push(blk);
+      }
+    }
+    Object.values(bucket).forEach(arr => arr.sort((a,b)=> new Date(a.start)-new Date(b.start)));
+
+    const grid = document.getElementById('weekGrid');
+    grid.innerHTML = '';
+    //Wochen Tage mit Sonntag
+    //const dow = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+    
+    //Wochen Tage mit Samstag
+    const dow = ['Mo','Di','Mi','Do','Fr','Sa'];
+
+    // ALT: 7 Tage (Mo–So)
+    // for (let i=0;i<7;i++){
+
+    // NEU: 6 Tage (Mo–Sa) – Sonntag ausgelassen
+    for (let i=0;i<6;i++){
+      const d = new Date(s); d.setDate(s.getDate()+i);
+      const key = localKey(d);
+      const isToday = (new Date()).toDateString() === d.toDateString();
+
+      const col = document.createElement('section');
+      col.className = 'wday-col';
+      col.innerHTML = `
+        <header class="wday-head">
+          <div class="text-xs ${isToday?'text-primary font-bold':'text-slate-500'}">${dow[i]}</div>
+          <div class="rounded-full size-8 flex items-center justify-center text-xs font-semibold
+                      ${isToday?'bg-primary text-white':'bg-slate-200 text-slate-800'}">
+            ${pad(d.getDate())}
+          </div>
+        </header>
+        <div class="wday-body"></div>
+      `;
+      const body = col.querySelector('.wday-body'); // ← explizit
+
+      const arr = bucket[key];
+      if (!arr || arr.length===0){
+        const p = document.createElement('div');
+        p.className = 'text-xs text-slate-400 text-center py-2';
+        p.textContent = '—';
+        body.appendChild(p);
+      } else {
+        let prevEnd = null;
+        for (const ev of arr){
+          const st = new Date(ev.start);
+
+          if (prevEnd){
+            const gapMin = (st - prevEnd) / 60000;
+            if (gapMin >= 5){
+              const gapEl = document.createElement('div');
+              const gapH = Math.max(14, Math.min(90, gapMin * 1.0));
+              gapEl.className =
+              "rounded-xl border-2 border-dashed bg-amber-100 px-3 py-2 text-amber-900 flex items-center justify-between shadow-md ring-1 ring-amber-300";
+              //gapEl.className =
+              //"rounded-xl border-2 border-dashed border-amber-500 bg-amber-100 px-3 py-2 text-amber-900 flex items-center justify-between shadow-md ring-2 ring-amber-300 animate-pulse";
+              gapEl.style.minHeight = gapH + "px";
+              gapEl.innerHTML = `
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[18px]">pause_circle</span>
+                  <div class="leading-tight">
+                    <div class="font-semibold text-sm">Nicht besetzt:</br> ${fmtDur(gapMin)}</div>
+                    <div class="text-[11px] text-slate-500">${fmtHM(prevEnd)} – ${fmtHM(st)}</div>
+                  </div>
+                </div>
+                <span class="text-[11px] font-medium text-slate-500">Pause</span>
+              `;
+              body.appendChild(gapEl);
+            }
+          }
+
+          const en = ev.end ? new Date(ev.end) : new Date(st.getTime()+45*60000);
+
+          // Wenn es ein echter Frei/Urlaub-Block ist: eigene Karte rendern (ohne Link)
+          const isBlock = (ev?.extendedProps?.kind === "block") || (String(ev.id||"").startsWith("blk-"));
+          if (isBlock){
+            const div = document.createElement('div');
+            div.className = "rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-red-900";
+            const title = ev.title || ev?.extendedProps?.reason || "Frei/Urlaub";
+            div.innerHTML = `
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">event_busy</span>
+      <div class="font-semibold text-[13px]">${title}</div>
+    </div>
+    <div class="text-[12px] font-semibold opacity-80">${fmtHM(st)} – ${fmtHM(en)}</div>
+  </div>
+`;
+
+            body.appendChild(div);
+            prevEnd = en;
+            continue;
+          }
+
+          const tId = ev.typeId ?? ev.type_id ?? ev?.extendedProps?.typeId ?? ev?.type?.id;
+          const t   = typesById[tId] || {};
+          const color = t.color || ev?.extendedProps?.typeColor || '#3b82f6';
+
+          const a = document.createElement('a');
+          a.href  = "{% url 'm_details' pk=0 %}".replace("/0/","/"+(ev.id||"")+"/");
+          a.className = "wcard";
+          a.innerHTML = `
+            <div class="wtime">${fmtHM(st)} – ${fmtHM(en)}</div>
+            <div class="wtitle">${ev.title || ev.studentName || ''}</div>
+            <div class="wtype">
+              <span class="dot" style="background:${color}"></span>
+              <span>${t.name || ev?.extendedProps?.typeName || '–'}</span>
+            </div>
+          `;
+          body.appendChild(a);
+          prevEnd = en;
+        }
+      }
+      grid.appendChild(col);
+    }
+  }
+
+  // Layout-Umschalter (Portrait ↔ Landscape)
+  async function applyLayout(){
+    const landscape = window.matchMedia('(orientation: landscape)').matches;
+    const listEl = document.getElementById('list');
+    const weekEl = document.getElementById('weekGrid');
+
+    if (landscape){
+      weekEl.classList.remove('hidden');
+      listEl.classList.add('hidden');
+      await renderWeek();
+    } else {
+      weekEl.classList.add('hidden');
+      listEl.classList.remove('hidden');
+      await loadDay();
+    }
+  }
+
+  // Navigation ±7 Tage
+  document.getElementById('prev').onclick = ()=>{ cur.setDate(cur.getDate()-7); applyLayout(); };
+  document.getElementById('next').onclick = ()=>{ cur.setDate(cur.getDate()+7); applyLayout(); };
+
+  // Orientation-Change
+  const mq = window.matchMedia('(orientation: landscape)');
+  if (mq.addEventListener) mq.addEventListener('change', applyLayout);
+  else mq.addListener(applyLayout);
+
+  // Initial
+  applyLayout();
+})();
+</script>
+
+</body>
+</html>

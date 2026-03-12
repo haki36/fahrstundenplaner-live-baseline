@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="de" class="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kalender</title>
+
+  <!-- Tailwind via CDN (mit forms & container-queries Plugins) -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <!-- Google Icons + Inter-Font -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" />
+
+  <!-- Tailwind-Config minimal: Primärfarbe + Font -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#1173d4', 'background-light': '#f6f7f8' },
+          fontFamily: { display: ['Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+
+  <!-- Icon-Style (Material Symbols) -->
+  <style>
+    .material-symbols-outlined{
+      font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24
+    }
+  </style>
+</head>
+<body class="bg-background-light font-display">
+  <!-- ===== Top Bar ===== -->
+  <!-- <div class="text-sm text-slate-600">Fahrlehrer {{ request.user.get_full_name|default:request.user.username }}</div> -->
+  <div class="flex items-center p-4 pb-2 justify-between sticky top-0 z-10 bg-background-light">
+    <!-- Link zu Passwort-Änderung (Einstellungen-Icon) -->
+    <a class="size-12 flex items-center" href="{% url 'password_change' %}">
+      <span class="material-symbols-outlined">settings</span>
+    </a>
+
+    <!-- Monats-Navigation -->
+    <div class="flex items-center gap-2">
+      <button id="mPrev" class="p-2">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <p id="monthLabel" class="text-base font-bold"></p>
+      <button id="mNext" class="p-2">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </div>
+    <div class="text-base font-bold">Fahrlehrer {{ request.user.get_full_name|default:request.user.username }}</div>
+    <!-- Platzhalter für zukünftige Benachrichtigungen -->
+    <button class="size-12 flex items-center justify-end">
+      <span class="material-symbols-outlined">notifications</span>
+    </button>
+  </div>
+
+
+  <!-- ===== Wochentagskopf (Mo–So) ===== -->
+  <div class="grid grid-cols-7 text-center text-xs text-slate-500 px-4 mt-2 mb-1">
+    <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+  </div>
+
+  <!-- ===== Monatsraster: wird per JS gefüllt ===== -->
+  <div id="monthGrid" class="grid grid-cols-7 gap-y-1 px-4 pb-24"></div>
+
+  <!-- (Hinweis: statische Demo-Komponenten aus dem Mock sind bewusst entfernt/auskommentiert) -->
+
+  <!-- ===== Bottom-Navigation ===== -->
+  <nav class="fixed bottom-0 left-0 right-0 border-t bg-white">
+    <div class="mx-auto max-w-[640px] px-6 py-2 grid grid-cols-3 text-center text-slate-500">
+      <!-- Aktive Ansicht: Monat -->
+      <a class="flex flex-col items-center gap-1 text-primary" href="{% url 'm_month' %}">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">calendar_month</span>
+        <span class="text-xs">Monat</span>
+      </a>
+      <!-- Tag-Ansicht -->
+      <a class="flex flex-col items-center gap-1 text-slate-500" href="{% url 'm_day' %}">
+        <span class="material-symbols-outlined">calendar_view_day</span>
+        <span class="text-xs">Tag</span>
+      </a>
+
+      <!-- (Optional) weitere Tabs – aktuell ausgeblendet:
+      <a class="flex flex-col items-center gap-1 text-slate-500" href="{% url 'students_page' %}">
+        <span class="material-symbols-outlined">group</span><span class="text-xs">Schüler</span>
+      </a>
+
+      <a class="flex flex-col items-center gap-1" href="{% url 'settings_page' %}">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="text-xs font-medium">Einstellungen</span>
+      </a>
+      -->
+
+      <!-- Logout -->
+      <form method="post" action="{% url 'logout' %}" 
+            onsubmit="return confirm('Möchtest du dich wirklich abmelden?');"
+            class="flex flex-col items-center gap-1">
+        {% csrf_token %}
+        <button type="submit" 
+                class="flex flex-col items-center gap-1 text-slate-500 bg-transparent border-0 p-0 focus:outline-none">
+          <span class="material-symbols-outlined">logout</span>
+          <span class="text-xs font-medium">Abmelden</span>
+        </button>
+      </form>
+
+    </div>
+  </nav>
+
+  <!-- ===== Monatslogik (Client) ===== -->
+  <script>
+    // API-Basis abhängig vom Template-Flag only_my:
+    // Fahrlehrer (nicht-Staff) bekommen nur ihre eigenen Termine.
+    const BASE_API = "{% if only_my %}/api/my/appointments/{% else %}/api/appointments/{% endif %}";
+    const DAY_URL  = "{% url 'm_day' %}";
+    // const DETAIL_URL = "{% url 'm_details' pk=999999 %}".replace("999999",""); // ggf. später wieder nutzen
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Helpers
+      const pad = n => String(n).padStart(2,'0');
+      const fmtMonth = d => new Intl.DateTimeFormat('de-DE', { month:'long', year:'numeric' }).format(d);
+
+      // Zeiger auf den ersten Tag des aktuellen Monats
+      let cur = new Date();
+      cur.setDate(1); cur.setHours(0,0,0,0);
+
+      function setMonthLabel() {
+        document.getElementById('monthLabel').textContent = fmtMonth(cur);
+      }
+
+      // Lädt Event-Anzahl pro Tag als „Punkt“ (Bullets) im Raster
+      async function loadDots(monthStart, monthEnd){
+        const qs  = new URLSearchParams({ start: monthStart.toISOString(), end: monthEnd.toISOString() });
+        const evs = await fetch(BASE_API + "?" + qs.toString()).then(r => r.json());
+
+        // Map YYYY-MM-DD -> Anzahl Events
+        const map = {};
+        for (const ev of evs){
+          const k = new Date(ev.start).toISOString().slice(0,10);
+          map[k] = (map[k] || 0) + 1;
+        }
+        return map;
+      }
+
+      // Baut das Monatsraster neu (bei Erstaufruf & Navigation)
+      async function renderGrid(){
+        const grid = document.getElementById('monthGrid');
+        grid.innerHTML = '';
+
+        // Wochentag des ersten Monats-Tages (Mo=0)
+        const firstWeekday = (cur.getDay() + 6) % 7;
+
+        // Monatsspan (Start/Ende)
+        const monthStart = new Date(cur);
+        const monthEnd   = new Date(cur.getFullYear(), cur.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        // Lade „Dots“ einmal für den Monat
+        const dots = await loadDots(monthStart, monthEnd);
+
+        // Leere Kacheln bis zum ersten Wochentag einfügen (Offset)
+        for (let i = 0; i < firstWeekday; i++) {
+          grid.appendChild(document.createElement('div'));
+        }
+
+        // Heute-ISO für Markierung
+        const todayISO = new Date().toISOString().slice(0,10);
+
+        // Für jeden Tag eine Zelle + Link auf Tagesansicht
+        for (let day = 1; day <= monthEnd.getDate(); day++){
+          const d   = new Date(cur.getFullYear(), cur.getMonth(), day);
+          const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+          const isToday = iso === todayISO;
+
+          const a = document.createElement('a');
+          a.href  = `${DAY_URL}?d=${iso}`;
+          a.className = "h-12 w-full text-sm font-medium flex items-center justify-center";
+
+          // Inneres: runde Kapsel; falls heute → primärfarbig; falls Events → grüner Punkt
+          a.innerHTML = `
+            <div class="relative flex size-full items-center justify-center rounded-full ${isToday ? 'bg-primary text-white' : 'text-slate-900'}">
+              ${day}
+              ${dots[iso] ? '<span class="absolute bottom-1 h-1.5 w-1.5 rounded-full bg-green-500"></span>' : ''}
+            </div>
+          `;
+
+          grid.appendChild(a);
+        }
+      }
+
+      // Monatsnavigation
+      document.getElementById('mPrev').onclick = () => { cur.setMonth(cur.getMonth() - 1); setMonthLabel(); renderGrid(); };
+      document.getElementById('mNext').onclick = () => { cur.setMonth(cur.getMonth() + 1); setMonthLabel(); renderGrid(); };
+
+      // Initial render
+      setMonthLabel();
+      renderGrid();
+    });
+  </script>
+</body>
+</html>

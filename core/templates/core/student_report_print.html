@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fahrschüler-Report – {{ student.name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f7f7f8;color:#111827}
+    .wrap{max-width:980px;margin:18px auto;padding:0 14px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.05);margin:12px 0}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .btn.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+    h1{margin:0 0 6px 0}
+    .muted{color:#6b7280}
+    .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+    .kpi{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
+    .kpi .h{font-size:12px;color:#6b7280;margin-bottom:4px}
+    .kpi .v{font-size:18px;font-weight:800}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
+    th{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.02em}
+    td{font-size:14px}
+    .col-notes{max-width:420px;white-space:pre-wrap}
+    .section-title{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+    .badge{padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #e5e7eb;font-size:12px;white-space:nowrap}
+
+    @media (max-width: 720px){
+      .wrap{max-width:none;margin:12px 0;padding:0 12px}
+      .kpis{grid-template-columns:1fr}
+    }
+
+    @media print{
+      body{background:#fff}
+      .wrap{max-width:none;margin:0;padding:0}
+      .card{border:0;box-shadow:none;border-radius:0;margin:0 0 10px 0;padding:0}
+      .toolbar{display:none !important}
+      a[href]:after{content:""}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between">
+        <div class="muted">Report-Ansicht (druckoptimiert)</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="window.close()">Schließen</button>
+          <button class="btn primary" onclick="window.print()">Drucken / PDF</button>
+        </div>
+      </div>
+
+      <h1>Fahrschüler-Report</h1>
+      <div class="muted">
+        <div><strong>Fahrschüler:</strong> {{ student.name }}</div>
+        <div><strong>Stand:</strong> {{ generated_at|date:"d.m.Y H:i" }}</div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="h">Absolviert</div>
+          <div class="v">{{ done_count }} Termine</div>
+          <div class="muted">{{ done_min }} min = {{ done_hm }}</div>
+        </div>
+        <div class="kpi">
+          <div class="h">Geplant</div>
+          <div class="v">{{ planned_count }} Termine</div>
+          <div class="muted">{{ planned_min }} min = {{ planned_hm }}</div>
+        </div>
+        <div class="kpi">
+          <div class="h">Gesamt</div>
+          <div class="v">{{ total_count }} Termine</div>
+          <div class="muted">{{ total_min }} min = {{ total_hm }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">
+        <h2 style="margin:0">Absolvierte Fahrstunden</h2>
+        <span class="badge">{{ done_count }} Termine • {{ done_min }} min ({{ done_hm }})</span>
+      </div>
+      <div class="muted" style="margin:6px 0 12px 0">Termine mit Endzeit in der Vergangenheit.</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Zeit</th>
+            <th>Dauer</th>
+            <th>Typ</th>
+            <th>Fahrlehrer</th>
+            <th>Fahrzeug</th>
+            <th>Termin-Notiz</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in done_rows %}
+            {% with a=r.obj %}
+            <tr>
+              <td>{{ a.start|date:"d.m.Y" }}</td>
+              <td>{{ a.start|date:"H:i" }} – {{ a.end|date:"H:i" }}</td>
+              <td>{{ r.minutes }} min ({{ r.hm }})</td>
+              <td>{{ a.type.name }}</td>
+              <td>{{ a.instructor.get_full_name|default:a.instructor.username }}</td>
+              <td>{{ a.vehicle.label }}</td>
+              <td class="col-notes">{{ a.notes|default:"" }}</td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="7" class="muted">Keine absolvierten Termine gefunden.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="section-title">
+        <h2 style="margin:0">Geplante Fahrstunden</h2>
+        <span class="badge">{{ planned_count }} Termine • {{ planned_min }} min ({{ planned_hm }})</span>
+      </div>
+      <div class="muted" style="margin:6px 0 12px 0">Termine in der Zukunft (oder ohne Endzeit-Info).</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Zeit</th>
+            <th>Dauer</th>
+            <th>Typ</th>
+            <th>Fahrlehrer</th>
+            <th>Fahrzeug</th>
+            <th>Termin-Notiz</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in planned_rows %}
+            {% with a=r.obj %}
+            <tr>
+              <td>{{ a.start|date:"d.m.Y" }}</td>
+              <td>{{ a.start|date:"H:i" }} – {{ a.end|date:"H:i" }}</td>
+              <td>{{ r.minutes }} min ({{ r.hm }})</td>
+              <td>{{ a.type.name }}</td>
+              <td>{{ a.instructor.get_full_name|default:a.instructor.username }}</td>
+              <td>{{ a.vehicle.label }}</td>
+              <td class="col-notes">{{ a.notes|default:"" }}</td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="7" class="muted">Keine geplanten Termine gefunden.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="section-title">
+        <h2 style="margin:0">Alle Fahrstunden</h2>
+        <span class="badge">{{ total_count }} Termine • {{ total_min }} min ({{ total_hm }})</span>
+      </div>
+      <div class="muted" style="margin:6px 0 12px 0">Komplette Liste – unabhängig vom Status.</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Zeit</th>
+            <th>Typ</th>
+            <th>Status</th>
+            <th>Dauer</th>
+            <th>Fahrlehrer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in all_rows %}
+            {% with a=r.obj %}
+            <tr>
+              <td>{{ a.start|date:"d.m.Y" }}</td>
+              <td>{{ a.start|date:"H:i" }} – {{ a.end|date:"H:i" }}</td>
+              <td>{{ a.type.name }}</td>
+              <td>
+                {% if a.id in done_ids %}
+                  absolviert
+                {% else %}
+                  geplant
+                {% endif %}
+              </td>
+              <td>{{ r.minutes }} min ({{ r.hm }})</td>
+              <td>{{ a.instructor.get_full_name|default:a.instructor.username }}</td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="6" class="muted">Noch keine Termine vorhanden.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Optional: beim Öffnen über "Als PDF exportieren" direkt den Druckdialog starten
+    // (kleiner Timeout, damit Layout fertig ist)
+    setTimeout(()=>{
+      try { window.print(); } catch(e) { /* ignore */ }
+    }, 250);
+  </script>
+</body>
+</html>
