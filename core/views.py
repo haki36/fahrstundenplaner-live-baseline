@@ -118,28 +118,50 @@ def students_page(request):
     if request.method == "POST":
         action = request.POST.get("action")
         sid = request.POST.get("id") or None
-        name  = (request.POST.get("name")  or "").strip()
+        name = (request.POST.get("name") or "").strip()
         email = (request.POST.get("email") or "").strip() or None
         phone = (request.POST.get("phone") or "").strip() or None
         notes = (request.POST.get("notes") or "").strip() or ""
 
         if action in ("create", "update"):
+            error = None
+
             if not name:
-                # Fehler zurück in die Seite geben
+                error = "Name ist erforderlich."
+
+            elif email:
+                existing = Student.objects.filter(email=email)
+
+                # Beim Update den aktuellen Datensatz ausnehmen
+                if sid:
+                    existing = existing.exclude(pk=sid)
+
+                if existing.exists():
+                    error = "Diese E-Mail-Adresse ist bereits vergeben."
+
+            if error:
                 ctx = {
                     "active": active,
                     "items": Student.objects.all().order_by("name"),
-                    "edit": Student.objects.filter(pk=sid).first(),
-                    "error": "Name ist erforderlich."
+                    "edit": Student.objects.filter(pk=sid).first() if sid else None,
+                    "error": error,
                 }
                 return render(request, "core/students.html", ctx)
 
             if sid:  # Update
                 s = get_object_or_404(Student, pk=sid)
-                s.name, s.email, s.phone, s.notes = name, email, phone, notes
+                s.name = name
+                s.email = email
+                s.phone = phone
+                s.notes = notes
                 s.save()
-            else:    # Create
-                Student.objects.create(name=name, email=email, phone=phone, notes=notes)
+            else:  # Create
+                Student.objects.create(
+                    name=name,
+                    email=email,
+                    phone=phone,
+                    notes=notes,
+                )
 
             return redirect("students_page")
 
@@ -147,7 +169,8 @@ def students_page(request):
             if sid:
                 Student.objects.filter(pk=sid).delete()
             return redirect("students_page")
-# GET
+
+    # GET
     edit_id = request.GET.get("edit")
     edit_obj = Student.objects.filter(pk=edit_id).first() if edit_id else None
     items = Student.objects.all().order_by("name")
@@ -225,111 +248,202 @@ def student_report_print(request, student_id: int):
 @login_required
 @csrf_protect
 def instructors_page(request):
+    """Benutzerverwaltung für Fahrlehrer/Admins/Superuser."""
+    active = "instructors"
+
     # Seite nur für Admins/Superuser
     if not _is_admin(request.user):
         return render(request, "core/instructors.html", {
-            "active": "instructors",
+            "active": active,
             "items": User.objects.all().order_by("username"),
             "edit": None,
-            "error": "Nur Admins dürfen Benutzer verwalten."
+            "error": "Nur Admins dürfen Benutzer verwalten.",
         })
-
-    active = "instructors"
 
     if request.method == "POST":
         action = request.POST.get("action")
         uid = request.POST.get("id") or None
 
-        username   = (request.POST.get("username")   or "").strip()
+        username = (request.POST.get("username") or "").strip()
         first_name = (request.POST.get("first_name") or "").strip()
-        last_name  = (request.POST.get("last_name")  or "").strip()
-        email      = (request.POST.get("email")      or "").strip() or None
-        password   = (request.POST.get("password")   or "").strip()
+        last_name = (request.POST.get("last_name") or "").strip()
+        email = (request.POST.get("email") or "").strip()
+        password = (request.POST.get("password") or "").strip()
+        confirm_admin_password = (request.POST.get("confirm_admin_password") or "").strip()
 
-        # Flags
-        want_staff = (request.POST.get("is_staff") == "on")
+        # Rechte-Flags
+        want_staff = request.POST.get("is_staff") == "on"
         can_touch_super = request.user.is_superuser
         want_super = can_touch_super and (request.POST.get("is_superuser") == "on")
 
         if action in ("create", "update"):
+            error = None
+            edit_obj = User.objects.filter(pk=uid).first() if uid else None
+
+            # Basisvalidierung
             if not username:
+                error = "Benutzername ist erforderlich."
+            elif action == "create" and not password:
+                error = "Passwort ist erforderlich."
+            else:
+                existing_username = User.objects.filter(username=username)
+                existing_email = User.objects.filter(email=email) if email else User.objects.none()
+
+                if uid:
+                    existing_username = existing_username.exclude(pk=uid)
+                    existing_email = existing_email.exclude(pk=uid)
+
+                if existing_username.exists():
+                    error = "Benutzername ist bereits vergeben."
+                elif email and existing_email.exists():
+                    error = "E-Mail ist bereits vergeben."
+
+            # Nur Superuser dürfen weitere Superuser erstellen
+            if not error and action == "create" and request.POST.get("is_superuser") == "on":
+                if not request.user.is_superuser:
+                    error = "Nur Superuser dürfen weitere Superuser erstellen."
+                elif not confirm_admin_password:
+                    error = "Bitte bestätige dein Superuser-Passwort, um einen weiteren Superuser zu erstellen."
+                elif not request.user.check_password(confirm_admin_password):
+                    error = "Das bestätigende Superuser-Passwort ist falsch."
+
+            # Nur Superuser dürfen Superuser-Rechte ändern
+            if not error and action == "update" and request.POST.get("is_superuser") == "on" and not request.user.is_superuser:
+                error = "Nur Superuser dürfen Superuser-Rechte vergeben."
+
+            if error:
                 return render(request, "core/instructors.html", {
                     "active": active,
                     "items": User.objects.all().order_by("username"),
-                    "edit": User.objects.filter(pk=uid).first(),
-                    "error": "Benutzername ist erforderlich."
+                    "edit": edit_obj,
+                    "error": error,
                 })
 
-            try:
-                if uid:
-                    u = get_object_or_404(User, pk=uid)
-                    u.username, u.first_name, u.last_name, u.email = username, first_name, last_name, email
-                    if password:
-                        u.set_password(password)
+            if action == "update":
+                if not uid:
+                    return render(request, "core/instructors.html", {
+                        "active": active,
+                        "items": User.objects.all().order_by("username"),
+                        "edit": None,
+                        "error": "Ungültige Bearbeitungsanfrage.",
+                    })
 
-                    # Admin-Recht setzen/entziehen (Admins & Superuser dürfen das)
-                    u.is_staff = want_staff
+                u = get_object_or_404(User, pk=uid)
 
-                    # Superuser umschalten NUR, wenn aktueller User Superuser ist
-                    if can_touch_super:
-                        if u.is_superuser and not want_super:
-                            # nie den letzten Superuser entziehen
-                            if User.objects.filter(is_superuser=True).exclude(pk=u.pk).count() == 0:
-                                return render(request, "core/instructors.html", {
-                                    "active": active,
-                                    "items": User.objects.all().order_by("username"),
-                                    "edit": u,
-                                    "error": "Der letzte Superuser kann nicht entzogen werden."
-                                })
-                            u.is_superuser = False
-                        elif not u.is_superuser and want_super:
-                            u.is_superuser = True
-                    # (Wenn aktueller User kein Superuser ist, ignorieren wir is_superuser still.)
-
-                    u.save()
-
-                else:
-                    if not password:
+                # Selbstschutz: niemand darf sich selbst aussperren
+                if u.pk == request.user.pk:
+                    if not want_staff:
                         return render(request, "core/instructors.html", {
                             "active": active,
                             "items": User.objects.all().order_by("username"),
-                            "edit": None,
-                            "error": "Passwort ist erforderlich."
+                            "edit": u,
+                            "error": "Du kannst dir selbst die Admin-Rechte nicht entziehen.",
                         })
-                    u = User(username=username, first_name=first_name, last_name=last_name, email=email)
-                    u.set_password(password)
-                    u.is_staff = want_staff
-                    u.is_superuser = want_super  # nur true, wenn can_touch_super
-                    u.save()
 
+                    if request.user.is_superuser and request.POST.get("is_superuser") != "on":
+                        return render(request, "core/instructors.html", {
+                            "active": active,
+                            "items": User.objects.all().order_by("username"),
+                            "edit": u,
+                            "error": "Du kannst dir selbst die Superuser-Rechte nicht entziehen.",
+                        })
+
+                u.username = username
+                u.first_name = first_name
+                u.last_name = last_name
+                u.email = email
+
+                if password:
+                    u.set_password(password)
+
+                # Admin-Recht setzen/entziehen
+                u.is_staff = want_staff
+
+                # Superuser-Recht nur für Superuser bearbeitbar
+                if can_touch_super:
+                    submitted_super_flag = request.POST.get("is_superuser") == "on"
+
+                    if u.is_superuser and not submitted_super_flag:
+                        # Letzten Superuser nicht entziehen
+                        if User.objects.filter(is_superuser=True).exclude(pk=u.pk).count() == 0:
+                            return render(request, "core/instructors.html", {
+                                "active": active,
+                                "items": User.objects.all().order_by("username"),
+                                "edit": u,
+                                "error": "Der letzte Superuser kann nicht entzogen werden.",
+                            })
+                        u.is_superuser = False
+
+                    elif not u.is_superuser and submitted_super_flag:
+                        # Zusätzlicher Schutz: eigenes Passwort bestätigen, wenn jemand zum Superuser gemacht wird
+                        if not confirm_admin_password:
+                            return render(request, "core/instructors.html", {
+                                "active": active,
+                                "items": User.objects.all().order_by("username"),
+                                "edit": u,
+                                "error": "Bitte bestätige dein Superuser-Passwort, um Superuser-Rechte zu vergeben.",
+                            })
+                        if not request.user.check_password(confirm_admin_password):
+                            return render(request, "core/instructors.html", {
+                                "active": active,
+                                "items": User.objects.all().order_by("username"),
+                                "edit": u,
+                                "error": "Das bestätigende Superuser-Passwort ist falsch.",
+                            })
+                        u.is_superuser = True
+
+                u.save()
                 return redirect("instructors_page")
 
-            except IntegrityError:
-                return render(request, "core/instructors.html", {
-                    "active": active,
-                    "items": User.objects.all().order_by("username"),
-                    "edit": User.objects.filter(pk=uid).first() if uid else None,
-                    "error": "Benutzername ist bereits vergeben."
-                })
+            elif action == "create":
+                u = User(
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                )
+                u.set_password(password)
+                u.is_staff = want_staff
+                u.is_superuser = want_super
+                u.save()
+                return redirect("instructors_page")
 
         if action == "delete":
             if uid:
                 u = get_object_or_404(User, pk=uid)
+
+                # Selbstschutz
+                if u.pk == request.user.pk:
+                    return render(request, "core/instructors.html", {
+                        "active": active,
+                        "items": User.objects.all().order_by("username"),
+                        "edit": None,
+                        "error": "Du kannst deinen eigenen Benutzer hier nicht löschen.",
+                    })
+
+                # Superuser hier nicht löschbar
                 if u.is_superuser:
                     return render(request, "core/instructors.html", {
                         "active": active,
                         "items": User.objects.all().order_by("username"),
                         "edit": None,
-                        "error": "Ein Superuser kann hier nicht gelöscht werden."
+                        "error": "Ein Superuser kann hier nicht gelöscht werden.",
                     })
+
                 u.delete()
+
             return redirect("instructors_page")
 
     # GET
     edit_id = request.GET.get("edit")
     edit_obj = User.objects.filter(pk=edit_id).first() if edit_id else None
     items = User.objects.all().order_by("username")
-    return render(request, "core/instructors.html", {"active": active, "items": items, "edit": edit_obj})
+
+    return render(request, "core/instructors.html", {
+        "active": active,
+        "items": items,
+        "edit": edit_obj,
+    })
 
 
 @csrf_protect

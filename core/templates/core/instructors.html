@@ -65,7 +65,11 @@
   <div class="wrap">
     <h1>Fahrlehrer</h1>
 
-    {% if error %}<div style="color:#b91c1c;margin:8px 0">{{ error }}</div>{% endif %}
+    {% if error %}
+      <div style="margin:12px 0; padding:10px 12px; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:10px;">
+        {{ error }}
+      </div>
+    {% endif %}
 
     <!-- Formular: Neu/Bearbeiten -->
     <div class="card" style="margin:12px 0;">
@@ -77,31 +81,74 @@
         <input name="first_name" placeholder="Vorname" value="{{ edit.first_name|default:'' }}">
         <input name="last_name" placeholder="Nachname" value="{{ edit.last_name|default:'' }}">
         <input name="email" placeholder="E-Mail" value="{{ edit.email|default:'' }}">
-        <input name="password" placeholder="Passwort (leer = unverändert)" type="password">
+        <input name="password" placeholder="Passwort {% if edit %}(leer = unverändert){% endif %}" type="password">
 
-        <!-- Admin-/Superuser-Flags: volle Breite der Grid -->
-        <div style="grid-column: 1 / -1; display:flex; flex-direction:column; gap:.25rem; margin-top:.25rem;">
-          <label style="display:flex;align-items:center;gap:.5rem;">
+        <!-- Admin-/Superuser-Flags -->
+        <div style="grid-column: 1 / -1; display:flex; flex-direction:column; gap:.5rem; margin-top:.25rem;">
+          <label style="display:flex; align-items:center; gap:.5rem;">
             <input type="checkbox" name="is_staff" {% if edit and edit.is_staff %}checked{% endif %}>
             <span>Admin-Rechte (volle Rechte in der App)</span>
           </label>
 
           {% if request.user.is_superuser %}
-          <label style="display:flex;align-items:center;gap:.5rem;color:#b91c1c;">
-            <input type="checkbox" name="is_superuser" {% if edit and edit.is_superuser %}checked{% endif %}>
+          <label style="display:flex; align-items:center; gap:.5rem; color:#b91c1c;">
+            <input
+              type="checkbox"
+              name="is_superuser"
+              id="id_is_superuser"
+              {% if edit and edit.is_superuser %}checked{% endif %}
+            >
             <span><strong>Superuser</strong> (Vollzugriff auf alles – mit Vorsicht!)</span>
           </label>
+
+          <div id="superuser-confirm-box" style="display:none; margin-left:1.75rem;">
+            <input
+              type="password"
+              name="confirm_admin_password"
+              id="id_confirm_admin_password"
+              placeholder="Superuser-Passwort zur Bestätigung eingeben"
+              autocomplete="current-password"
+              style="width:100%; max-width:420px;"
+            >
+            <div style="font-size:.9rem; color:#b91c1c; margin-top:.35rem;">
+              Zur Erstellung oder Vergabe von Superuser-Rechten muss das eigene Superuser-Passwort bestätigt werden.
+            </div>
+          </div>
           {% endif %}
         </div>
 
-
-
         <div class="row" style="justify-content:flex-end; grid-column:1 / -1">
           <a class="btn" href="{% url 'instructors_page' %}">Neu</a>
-          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">Speichern</button>
+          <button class="btn primary" name="action" value="{{ edit.id|yesno:'update,create' }}">
+            Speichern
+          </button>
         </div>
       </form>
     </div>
+
+    {% if request.user.is_superuser %}
+    <script>
+      (function () {
+        const superuserCheckbox = document.getElementById("id_is_superuser");
+        const confirmBox = document.getElementById("superuser-confirm-box");
+        const confirmInput = document.getElementById("id_confirm_admin_password");
+
+        if (!superuserCheckbox || !confirmBox || !confirmInput) return;
+
+        function toggleSuperuserConfirm() {
+          if (superuserCheckbox.checked) {
+            confirmBox.style.display = "block";
+          } else {
+            confirmBox.style.display = "none";
+            confirmInput.value = "";
+          }
+        }
+
+        toggleSuperuserConfirm();
+        superuserCheckbox.addEventListener("change", toggleSuperuserConfirm);
+      })();
+    </script>
+    {% endif %}
 
 
 
@@ -109,7 +156,15 @@
     <div class="card">
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Benutzername</th><th>Name</th><th>E-Mail</th><th style="width:210px">Aktion</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Benutzername</th>
+              <th>Name</th>
+              <th>E-Mail</th>
+              <th>Rolle</th>
+              <th style="width:210px">Aktion</th>
+            </tr>
+          </thead>
           <tbody>
           {% for u in items %}
             <tr>
@@ -117,9 +172,18 @@
               <td>{{ u.first_name }} {{ u.last_name }}</td>
               <td>{{ u.email }}</td>
               <td>
+                {% if u.is_superuser %}
+                  Superuser
+                {% elif u.is_staff %}
+                  Admin
+                {% else %}
+                  Benutzer
+                {% endif %}
+              </td>
+              <td>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
                   <a class="btn" href="?edit={{ u.id }}">Bearbeiten</a>
-                  <form method="post" onsubmit="return confirm('Diesen Fahrlehrer löschen?')">
+                  <form method="post" onsubmit="return confirm('Diesen Benutzer wirklich löschen?')">
                     {% csrf_token %}
                     <input type="hidden" name="id" value="{{ u.id }}">
                     <button class="btn danger" name="action" value="delete">Löschen</button>
@@ -128,7 +192,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="4">Noch keine Fahrlehrer erfasst.</td></tr>
+            <tr><td colspan="5">Noch keine Fahrlehrer erfasst.</td></tr>
           {% endfor %}
           </tbody>
         </table>
