@@ -11,3 +11,10 @@ backups/
 # Local DB
 db.sqlite3
 db.sqlite3-journal
+
+# Django
+staticfiles/
+media/
+
+# server scripts
+backup_sqlite.sh
