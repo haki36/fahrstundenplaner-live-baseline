@@ -25,13 +25,13 @@ SECRET_KEY = 'django-insecure-urx&25u@^nrfn)uph%5z-o%c_%93-(vy60s3&ro+&b^c#d-abw
 DEBUG = True
 
 # Hosts whitelisten. In Dev leer ok; in Prod Domain(s)/IP(s) eintragen.
-# ALLOWED_HOSTS = ["65.109.1.194", "localhost"]
+# ALLOWED_HOSTS = ["89.167.61.22", "localhost"]
 
-ALLOWED_HOSTS = ["planer.fahrschulesafe.com", "www.planer.fahrschulesafe.com", "65.109.4.11", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["lichtenberg.fahrschulesafe.com", "www.lichtenberg.fahrschulesafe.com", "89.167.61.22", "localhost", "127.0.0.1"]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://planer.fahrschulesafe.com",
-    "https://www.planer.fahrschulesafe.com",
+    "https://lichtenberg.fahrschulesafe.com",
+    "https://www.lichtenberg.fahrschulesafe.com",
 ]
 
 # === Apps ===
