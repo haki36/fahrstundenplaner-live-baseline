@@ -330,6 +330,14 @@ def instructors_page(request):
 
                 u = get_object_or_404(User, pk=uid)
 
+                if not request.user.is_superuser and u.is_superuser:
+                    return render(request, "core/instructors.html", {
+                        "active": active,
+                        "items": User.objects.all().order_by("username"),
+                        "edit": None,
+                        "error": "Nur Superuser dürfen Superuser bearbeiten.",
+                    })
+
                 # Selbstschutz: niemand darf sich selbst aussperren
                 if u.pk == request.user.pk:
                     if not want_staff:
@@ -411,6 +419,14 @@ def instructors_page(request):
         if action == "delete":
             if uid:
                 u = get_object_or_404(User, pk=uid)
+
+                if not request.user.is_superuser and u.is_superuser:
+                    return render(request, "core/instructors.html", {
+                        "active": active,
+                        "items": User.objects.all().order_by("username"),
+                        "edit": None,
+                        "error": "Nur Superuser dürfen Superuser löschen.",
+                    })
 
                 # Selbstschutz
                 if u.pk == request.user.pk:

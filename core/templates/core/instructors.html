@@ -182,7 +182,9 @@
               </td>
               <td>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <a class="btn" href="?edit={{ u.id }}">Bearbeiten</a>
+                  {% if request.user.is_superuser or not u.is_superuser %}
+                    <a class="btn" href="?edit={{ u.id }}">Bearbeiten</a>
+                  {% endif %}
                   <form method="post" onsubmit="return confirm('Diesen Benutzer wirklich löschen?')">
                     {% csrf_token %}
                     <input type="hidden" name="id" value="{{ u.id }}">
