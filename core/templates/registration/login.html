@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="de">
 <head>
@@ -6,20 +7,23 @@
   <title>Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="min-h-screen bg-gray-50 flex items-center justify-center">
+
   <div class="w-full max-w-sm bg-white p-6 rounded-xl shadow">
+
+    <div class="flex justify-center mb-6">
+      <img src="{% static 'img/logo.png' %}" class="w-72 mx-auto">
+    </div>
+
     <h1 class="text-xl font-bold mb-4 text-center">Anmelden</h1>
 
     {% if form.errors %}
       <div class="mb-3 text-sm text-red-700">Benutzername oder Passwort ist falsch.</div>
     {% endif %}
-    {% if next and user.is_authenticated %}
-      <div class="mb-3 text-sm text-yellow-700">Du hast keine Berechtigung für diese Seite.</div>
-    {% endif %}
 
     <form method="post" action="{% url 'login' %}">
       {% csrf_token %}
-      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
       <label class="block text-sm mb-1">Benutzername</label>
       <input name="username" class="w-full border rounded-md px-3 py-2 mb-3" autofocus required>
@@ -27,12 +31,12 @@
       <label class="block text-sm mb-1">Passwort</label>
       <input type="password" name="password" class="w-full border rounded-md px-3 py-2 mb-4" required>
 
-      <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md">Anmelden</button>
+      <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md">
+        Anmelden
+      </button>
     </form>
 
-    <div class="text-center mt-4">
-      <a href="{% url 'home' %}" class="text-sm text-gray-500 hover:underline">Zurück zur Startseite</a>
-    </div>
   </div>
+
 </body>
 </html>

@@ -123,6 +123,9 @@ USE_TZ = True                   # Zeitzonenbewusste Datetimes (empfohlen)
 # === Static Files ===
 # In Dev: Django dient staticfiles. In Prod: über Collectstatic + Webserver/Storage.
 STATIC_URL = 'static/'          # URL-Prefix für statische Dateien
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 # Default PK-Typ für neue Modelle
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
